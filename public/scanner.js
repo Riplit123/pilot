@@ -3,11 +3,9 @@ const video = document.getElementById('video-background');
 const canvasContainer = document.getElementById('canvas-container');
 const infoPanel = document.getElementById('info-panel');
 const modelDescription = document.getElementById('model-description');
-const statusMessageSpan = document.getElementById('status-message');
-const statusIconSpan = document.querySelector('#status-text .status-icon');
-const statusBar = document.getElementById('status-bar');
 const progressContainer = document.getElementById('progress-container');
 const progressBar = document.getElementById('progress-bar');
+const resetButton = document.getElementById('reset-button');
 
 // Three.js globals
 let scene, camera, renderer, controls, currentModel;
@@ -18,21 +16,11 @@ let scanning = true;
 let scanCanvas, scanContext;
 let lastQRResult = null;
 
-// Helper for status updates (только критические)
-function setStatus(message, isError = false) {
-    statusMessageSpan.innerText = message;
-    if (isError) {
-        statusBar.classList.add('error-status');
-        statusIconSpan.innerText = '⚠️';
-    } else {
-        statusBar.classList.remove('error-status');
-        if (message.includes('готова')) statusIconSpan.innerText = '📷';
-        else if (message.includes('QR')) statusIconSpan.innerText = '🔍';
-        else statusIconSpan.innerText = '🔄';
-    }
-}
+// Флаги блокировки
+let isModelLoading = false;   // идёт загрузка модели
+let isModelActive = false;    // модель уже загружена и отображается
 
-// Progress bar control (без текста)
+// Progress bar control
 function showProgress(percent) {
     if (!progressContainer.classList.contains('progress-visible')) {
         progressContainer.classList.add('progress-visible');
@@ -45,7 +33,7 @@ function hideProgress() {
     progressBar.style.width = '0%';
 }
 
-// Panel expand/collapse logic
+// Panel expand/collapse
 let panelStartY = 0;
 let isDragging = false;
 
@@ -57,7 +45,6 @@ function togglePanel(expand) {
     }
 }
 
-// Touch events for swipe down to collapse
 infoPanel.addEventListener('touchstart', (e) => {
     if (!infoPanel.classList.contains('expanded')) return;
     panelStartY = e.touches[0].clientY;
@@ -77,16 +64,33 @@ infoPanel.addEventListener('touchend', () => {
     isDragging = false;
 });
 
-// Click on panel to expand (if collapsed)
 infoPanel.addEventListener('click', (e) => {
     if (!infoPanel.classList.contains('expanded')) {
         togglePanel(true);
     }
 });
 
-// Load 3D model with progress (без текстовых сообщений)
+// Сброс состояния: удаляем модель, скрываем панель, снимаем блокировки
+function resetModel() {
+    if (currentModel) {
+        scene.remove(currentModel);
+        currentModel = null;
+    }
+    infoPanel.classList.add('hidden');
+    isModelActive = false;
+    isModelLoading = false;
+    // Не сбрасываем lastQRResult, чтобы не пересканировать тот же QR повторно
+    // Но разрешаем сканировать новый QR
+}
+
+// Load 3D model with progress (блокируем сканирование)
 async function loadModel(modelId) {
     if (!isThreeReady) return;
+    if (isModelLoading || isModelActive) {
+        // Нельзя загружать новую модель, пока активна предыдущая или идёт загрузка
+        return;
+    }
+    isModelLoading = true;
     if (currentModel) {
         scene.remove(currentModel);
         currentModel = null;
@@ -117,29 +121,32 @@ async function loadModel(modelId) {
                 })
                 .catch(err => console.error('Metadata error:', err));
             hideProgress();
+            isModelLoading = false;
+            isModelActive = true;
         }, (xhr) => {
             if (xhr.lengthComputable) {
                 const percentComplete = (xhr.loaded / xhr.total) * 100;
                 showProgress(percentComplete);
-                // Текстовый прогресс не выводим
             }
         }, (error) => {
             console.error('Load error:', error);
-            setStatus(`Ошибка загрузки модели`, true);
             hideProgress();
+            isModelLoading = false;
+            isModelActive = false;
         });
     } catch (err) {
         console.error(err);
-        setStatus(`Ошибка: ${err.message}`, true);
         hideProgress();
+        isModelLoading = false;
+        isModelActive = false;
     }
 }
 
-// QR scanning
+// QR scanning (только если не активна модель и не идёт загрузка)
 async function setupQRScanner() {
     const isSecure = location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1';
     if (!isSecure) {
-        setStatus('Требуется HTTPS (используйте ngrok или localhost)', true);
+        console.warn('HTTPS required for camera');
         return;
     }
 
@@ -147,13 +154,17 @@ async function setupQRScanner() {
         const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
         video.srcObject = stream;
         await video.play();
-        setStatus('Камера готова, наведите на QR-код');
 
         scanCanvas = document.createElement('canvas');
         scanContext = scanCanvas.getContext('2d');
 
         function scanFrame() {
             if (!scanning) return;
+            // Если модель активна или идёт загрузка — не сканируем
+            if (isModelActive || isModelLoading) {
+                requestAnimationFrame(scanFrame);
+                return;
+            }
             if (video.videoWidth === 0 || video.videoHeight === 0) {
                 requestAnimationFrame(scanFrame);
                 return;
@@ -165,7 +176,6 @@ async function setupQRScanner() {
             const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: 'dontInvert' });
             if (code && code.data !== lastQRResult) {
                 lastQRResult = code.data;
-                // Только визуальная индикация, без текста "QR найден"
                 loadModel(code.data);
             }
             requestAnimationFrame(scanFrame);
@@ -173,17 +183,6 @@ async function setupQRScanner() {
         scanFrame();
     } catch (err) {
         console.error('Camera error:', err);
-        let errorMsg = 'Не удалось получить доступ к камере. ';
-        if (err.name === 'NotAllowedError') {
-            errorMsg += 'Разрешите доступ в настройках браузера.';
-        } else if (err.name === 'NotFoundError') {
-            errorMsg += 'На устройстве не найдена камера.';
-        } else if (err.name === 'NotReadableError') {
-            errorMsg += 'Камера занята другим приложением.';
-        } else {
-            errorMsg += err.message;
-        }
-        setStatus(errorMsg, true);
     }
 }
 
@@ -235,6 +234,11 @@ window.addEventListener('resize', () => {
         camera.updateProjectionMatrix();
         renderer.setSize(window.innerWidth, window.innerHeight);
     }
+});
+
+// Кнопка сброса
+resetButton.addEventListener('click', () => {
+    resetModel();
 });
 
 // Start
