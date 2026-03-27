@@ -25,7 +25,9 @@ let isPlaying = false;
 
 // Progress bar
 function showProgress(pct) {
-    if (!progressContainer.classList.contains('progress-visible')) progressContainer.classList.add('progress-visible');
+    if (!progressContainer.classList.contains('progress-visible')) {
+        progressContainer.classList.add('progress-visible');
+    }
     progressBar.style.width = `${pct}%`;
 }
 function hideProgress() {
@@ -56,7 +58,7 @@ infoPanel.addEventListener('touchmove', (e) => {
 });
 infoPanel.addEventListener('touchend', () => isDraggingPanel = false);
 infoPanel.addEventListener('click', (e) => {
-    if (!infoPanel.classList.contains('expanded') && e.target === infoPanel || e.target.classList.contains('panel-handle')) {
+    if (!infoPanel.classList.contains('expanded') && (e.target === infoPanel || e.target.classList.contains('panel-handle'))) {
         togglePanel(true);
     }
 });
@@ -188,13 +190,12 @@ async function setupQRScanner() {
             const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: 'dontInvert' });
             if (code && code.data !== lastQRResult) {
                 lastQRResult = code.data;
-                // QR content might be a URL with ?id=...
                 let id = null;
                 if (code.data.includes('scanner.html?id=')) {
                     const url = new URL(code.data);
                     id = url.searchParams.get('id');
                 } else {
-                    id = code.data; // fallback: just model ID
+                    id = code.data;
                 }
                 if (id) loadModel(id);
             }
