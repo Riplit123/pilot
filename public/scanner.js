@@ -2,219 +2,175 @@
 const video = document.getElementById('video-background');
 const canvasContainer = document.getElementById('canvas-container');
 const infoPanel = document.getElementById('info-panel');
-const modelDescription = document.getElementById('model-description');
+const descriptionText = document.getElementById('description-text');
 const progressContainer = document.getElementById('progress-container');
 const progressBar = document.getElementById('progress-bar');
 const resetButton = document.getElementById('reset-button');
-const speakBtn = document.getElementById('text-speak-btn');
-const incFontBtn = document.getElementById('text-inc-btn');
-const decFontBtn = document.getElementById('text-dec-btn');
+const audioBtn = document.getElementById('audio-btn');
+const zoomInBtn = document.getElementById('zoom-in');
+const zoomOutBtn = document.getElementById('zoom-out');
 
-// Three.js globals
 let scene, camera, renderer, controls, currentModel;
 let isThreeReady = false;
-
-// QR scanning
 let scanning = true;
 let scanCanvas, scanContext;
 let lastQRResult = null;
-
-// Флаги блокировки
 let isModelLoading = false;
 let isModelActive = false;
-
-// Текущий ID модели
 let currentModelId = null;
-
-// Web Speech
+let currentDescription = '';
+let currentAudioUrl = null;
 let speechSynth = window.speechSynthesis;
-let currentUtterance = null;
-
-// Размер шрифта (базовый 15px)
-let currentFontSize = 15;
-const MIN_FONT = 12;
-const MAX_FONT = 24;
+let isPlaying = false;
 
 // Progress bar
-function showProgress(percent) {
-    if (!progressContainer.classList.contains('progress-visible')) {
-        progressContainer.classList.add('progress-visible');
-    }
-    progressBar.style.width = `${percent}%`;
+function showProgress(pct) {
+    if (!progressContainer.classList.contains('progress-visible')) progressContainer.classList.add('progress-visible');
+    progressBar.style.width = `${pct}%`;
 }
 function hideProgress() {
     progressContainer.classList.remove('progress-visible');
     progressBar.style.width = '0%';
 }
 
-// Панель: свайп вверх/вниз
-let panelStartY = 0;
-let isDragging = false;
-let isExpanded = false;
-
-function setPanelExpanded(expanded) {
-    if (expanded) {
-        infoPanel.classList.add('expanded');
-        isExpanded = true;
-    } else {
-        infoPanel.classList.remove('expanded');
-        isExpanded = false;
-    }
+// Panel swipe (up/down) & click
+let startY = 0, isDraggingPanel = false;
+function togglePanel(expand) {
+    if (expand) infoPanel.classList.add('expanded');
+    else infoPanel.classList.remove('expanded');
 }
-
 infoPanel.addEventListener('touchstart', (e) => {
-    panelStartY = e.touches[0].clientY;
-    isDragging = true;
+    startY = e.touches[0].clientY;
+    isDraggingPanel = true;
 });
 infoPanel.addEventListener('touchmove', (e) => {
-    if (!isDragging) return;
-    const delta = e.touches[0].clientY - panelStartY;
-    if (!isExpanded && delta < -30) {
-        // свайп вверх → раскрыть
-        setPanelExpanded(true);
-        isDragging = false;
-    } else if (isExpanded && delta > 50) {
-        // свайп вниз → свернуть
-        setPanelExpanded(false);
-        isDragging = false;
+    if (!isDraggingPanel) return;
+    const delta = e.touches[0].clientY - startY;
+    if (delta > 40 && infoPanel.classList.contains('expanded')) {
+        togglePanel(false);
+        isDraggingPanel = false;
+    } else if (delta < -40 && !infoPanel.classList.contains('expanded')) {
+        togglePanel(true);
+        isDraggingPanel = false;
     }
 });
-infoPanel.addEventListener('touchend', () => { isDragging = false; });
-// Также клик по ручке для раскрытия/сворачивания
-infoPanel.querySelector('.panel-handle').addEventListener('click', () => {
-    setPanelExpanded(!isExpanded);
-});
-
-// Управление шрифтом
-function updateFontSize() {
-    modelDescription.style.fontSize = currentFontSize + 'px';
-}
-incFontBtn.addEventListener('click', () => {
-    if (currentFontSize < MAX_FONT) {
-        currentFontSize += 2;
-        updateFontSize();
-    }
-});
-decFontBtn.addEventListener('click', () => {
-    if (currentFontSize > MIN_FONT) {
-        currentFontSize -= 2;
-        updateFontSize();
+infoPanel.addEventListener('touchend', () => isDraggingPanel = false);
+infoPanel.addEventListener('click', (e) => {
+    if (!infoPanel.classList.contains('expanded') && e.target === infoPanel || e.target.classList.contains('panel-handle')) {
+        togglePanel(true);
     }
 });
 
-// Озвучивание текста
-function speakText(text) {
-    if (!speechSynth) return;
-    if (currentUtterance) {
-        speechSynth.cancel();
-    }
-    currentUtterance = new SpeechSynthesisUtterance(text);
-    currentUtterance.lang = 'ru-RU';
-    currentUtterance.rate = 0.9;
-    speechSynth.speak(currentUtterance);
-}
-speakBtn.addEventListener('click', () => {
-    const text = modelDescription.innerText;
-    if (text && text !== 'Нет описания') {
-        speakText(text);
-    }
-});
-
-// Сброс модели
+// Reset model
 function resetModel() {
-    if (currentModel) {
-        scene.remove(currentModel);
-        currentModel = null;
-    }
+    if (currentModel) scene.remove(currentModel);
+    currentModel = null;
     infoPanel.classList.add('hidden');
     isModelActive = false;
     isModelLoading = false;
     currentModelId = null;
-    if (currentUtterance) {
-        speechSynth.cancel();
-    }
-    // Не сбрасываем lastQRResult, но разрешаем сканирование
+    if (speechSynth.speaking) speechSynth.cancel();
+    isPlaying = false;
+    audioBtn.textContent = '🔊';
 }
 
-// Загрузка модели (с блокировкой)
+// Load model (with progress)
 async function loadModel(modelId) {
-    if (!isThreeReady) return;
     if (isModelLoading || isModelActive) return;
     isModelLoading = true;
-    if (currentModel) {
-        scene.remove(currentModel);
-        currentModel = null;
-    }
-    currentModelId = modelId;
+    if (currentModel) scene.remove(currentModel);
     showProgress(0);
     try {
+        const res = await fetch(`/api/models/${modelId}`);
+        if (!res.ok) throw new Error('Model not found');
+        const data = await res.json();
+        currentDescription = data.description || 'Нет описания';
+        currentAudioUrl = data.audioFilename ? `/api/models/${modelId}/audio` : null;
+        descriptionText.innerText = currentDescription;
+        descriptionText.style.fontSize = '15px'; // reset zoom
+        infoPanel.classList.remove('hidden');
+        togglePanel(false);
+        currentModelId = modelId;
+
         const modelUrl = `/api/models/${modelId}/file`;
         const loader = new THREE.GLTFLoader();
         loader.load(modelUrl, (gltf) => {
             currentModel = gltf.scene;
             const box = new THREE.Box3().setFromObject(currentModel);
             const size = box.getSize(new THREE.Vector3());
-            const maxDim = Math.max(size.x, size.y, size.z);
-            const scale = 1.2 / maxDim;
+            const scale = 1.2 / Math.max(size.x, size.y, size.z);
             currentModel.scale.set(scale, scale, scale);
             const center = box.getCenter(new THREE.Vector3());
-            currentModel.position.x = -center.x * scale;
-            currentModel.position.y = -center.y * scale;
-            currentModel.position.z = -center.z * scale;
+            currentModel.position.set(-center.x * scale, -center.y * scale, -center.z * scale);
             scene.add(currentModel);
-
-            // Загружаем метаданные
-            fetch(`/api/models/${modelId}`)
-                .then(res => res.json())
-                .then(data => {
-                    modelDescription.innerText = data.description || 'Нет описания';
-                    infoPanel.classList.remove('hidden');
-                    setPanelExpanded(false);
-                    // Сброс шрифта к базовому
-                    currentFontSize = 15;
-                    updateFontSize();
-                })
-                .catch(err => console.error('Metadata error:', err));
             hideProgress();
             isModelLoading = false;
             isModelActive = true;
         }, (xhr) => {
-            if (xhr.lengthComputable) {
-                showProgress((xhr.loaded / xhr.total) * 100);
-            }
-        }, (error) => {
-            console.error('Load error:', error);
+            if (xhr.lengthComputable) showProgress((xhr.loaded / xhr.total) * 100);
+        }, (err) => {
+            console.error(err);
             hideProgress();
             isModelLoading = false;
             isModelActive = false;
+            infoPanel.classList.add('hidden');
         });
     } catch (err) {
         console.error(err);
         hideProgress();
         isModelLoading = false;
         isModelActive = false;
+        infoPanel.classList.add('hidden');
     }
 }
 
-// Получение modelId из URL
-function getModelIdFromUrl() {
-    const urlParams = new URLSearchParams(window.location.search);
-    return urlParams.get('model');
+// Audio: either custom MP3 or TTS
+function playDescription() {
+    if (isPlaying) {
+        if (speechSynth.speaking) speechSynth.cancel();
+        isPlaying = false;
+        audioBtn.textContent = '🔊';
+        return;
+    }
+    if (currentAudioUrl) {
+        const audio = new Audio(currentAudioUrl);
+        audio.play();
+        audio.onended = () => { isPlaying = false; audioBtn.textContent = '🔊'; };
+        audio.onplay = () => { isPlaying = true; audioBtn.textContent = '🔊⏵'; };
+        audio.onerror = () => { isPlaying = false; audioBtn.textContent = '🔊'; };
+    } else {
+        if (!currentDescription) return;
+        const utterance = new SpeechSynthesisUtterance(currentDescription);
+        utterance.lang = 'ru-RU';
+        utterance.onstart = () => { isPlaying = true; audioBtn.textContent = '🔊⏵'; };
+        utterance.onend = () => { isPlaying = false; audioBtn.textContent = '🔊'; };
+        utterance.onerror = () => { isPlaying = false; audioBtn.textContent = '🔊'; };
+        speechSynth.speak(utterance);
+    }
 }
 
-// QR сканер (блокируется при активности)
+// Text zoom
+let currentFontSize = 15;
+function zoomText(delta) {
+    currentFontSize = Math.min(28, Math.max(12, currentFontSize + delta));
+    descriptionText.style.fontSize = `${currentFontSize}px`;
+}
+zoomInBtn.onclick = () => zoomText(2);
+zoomOutBtn.onclick = () => zoomText(-2);
+
+// Reset button action
+resetButton.onclick = () => resetModel();
+
+// QR scanning (only when no model active)
 async function setupQRScanner() {
     const isSecure = location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1';
-    if (!isSecure) return;
-
+    if (!isSecure) return console.warn('HTTPS required for camera');
     try {
         const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
         video.srcObject = stream;
         await video.play();
-
         scanCanvas = document.createElement('canvas');
         scanContext = scanCanvas.getContext('2d');
-
         function scanFrame() {
             if (!scanning) return;
             if (isModelActive || isModelLoading) {
@@ -232,18 +188,15 @@ async function setupQRScanner() {
             const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: 'dontInvert' });
             if (code && code.data !== lastQRResult) {
                 lastQRResult = code.data;
-                // Из QR может прийти полный URL с параметром model
-                let modelId = null;
-                try {
+                // QR content might be a URL with ?id=...
+                let id = null;
+                if (code.data.includes('scanner.html?id=')) {
                     const url = new URL(code.data);
-                    modelId = url.searchParams.get('model');
-                } catch (e) {
-                    // если не URL, пробуем считать сам code.data как ID
-                    modelId = code.data;
+                    id = url.searchParams.get('id');
+                } else {
+                    id = code.data; // fallback: just model ID
                 }
-                if (modelId) {
-                    loadModel(modelId);
-                }
+                if (id) loadModel(id);
             }
             requestAnimationFrame(scanFrame);
         }
@@ -257,43 +210,34 @@ async function setupQRScanner() {
 function initThree() {
     scene = new THREE.Scene();
     scene.background = null;
-
     camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
     camera.position.set(0, 1, 2);
     camera.lookAt(0, 0, 0);
-
     renderer = new THREE.WebGLRenderer({ alpha: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.setClearColor(0x000000, 0);
     canvasContainer.appendChild(renderer.domElement);
-
     controls = new THREE.OrbitControls(camera, renderer.domElement);
     controls.enableZoom = true;
     controls.enablePan = true;
     controls.zoomSpeed = 1.2;
     controls.rotateSpeed = 1.0;
-
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
-    scene.add(ambientLight);
-    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
-    directionalLight.position.set(1, 1, 1);
-    scene.add(directionalLight);
+    const ambient = new THREE.AmbientLight(0xffffff, 0.6);
+    scene.add(ambient);
+    const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+    dirLight.position.set(1, 1, 1);
+    scene.add(dirLight);
     const backLight = new THREE.DirectionalLight(0xffffff, 0.4);
     backLight.position.set(-0.5, 0, -1);
     scene.add(backLight);
-
     isThreeReady = true;
     animate();
 }
-
 function animate() {
     requestAnimationFrame(animate);
     if (controls) controls.update();
-    if (renderer && scene && camera) {
-        renderer.render(scene, camera);
-    }
+    if (renderer && scene && camera) renderer.render(scene, camera);
 }
-
 window.addEventListener('resize', () => {
     if (camera && renderer) {
         camera.aspect = window.innerWidth / window.innerHeight;
@@ -302,15 +246,12 @@ window.addEventListener('resize', () => {
     }
 });
 
-resetButton.addEventListener('click', resetModel);
+// URL parameter handling
+const urlParams = new URLSearchParams(window.location.search);
+const idFromUrl = urlParams.get('id');
+if (idFromUrl) loadModel(idFromUrl);
 
-// Старт
 initThree();
 setupQRScanner();
 
-// Если в URL есть параметр model, загружаем его сразу
-const initialModelId = getModelIdFromUrl();
-if (initialModelId) {
-    // Даём время инициализироваться
-    setTimeout(() => loadModel(initialModelId), 500);
-}
+audioBtn.onclick = playDescription;
