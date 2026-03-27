@@ -85,14 +85,14 @@ infoPanel.addEventListener('click', (e) => {
     }
 });
 
-// Load 3D model with progress
+// Load 3D model with progress (без текстовых сообщений о проценте)
 async function loadModel(modelId) {
     if (!isThreeReady) return;
     if (currentModel) {
         scene.remove(currentModel);
         currentModel = null;
     }
-    setStatus(`Загрузка модели...`);
+    // Показываем прогресс-бар, но не меняем статусную строку
     showProgress(0);
     try {
         const modelUrl = `/api/models/${modelId}/file`;
@@ -115,16 +115,22 @@ async function loadModel(modelId) {
                 .then(data => {
                     modelDescription.innerText = data.description || 'Нет описания';
                     infoPanel.classList.remove('hidden');
-                    togglePanel(false); // свёрнуто по умолчанию
+                    togglePanel(false);
                 })
                 .catch(err => console.error('Metadata error:', err));
-            setStatus(`Модель готова, вращайте/масштабируйте`);
+            
+            // После загрузки скрываем прогресс-бар и не выводим текстовое сообщение
             hideProgress();
+            // Статусную строку можно оставить как "Камера готова..." (не меняем)
+            // Но если хотим показать, что модель загружена, можно просто ничего не писать.
+            // Оставляем без изменений.
         }, (xhr) => {
             if (xhr.lengthComputable) {
                 const percentComplete = (xhr.loaded / xhr.total) * 100;
                 showProgress(percentComplete);
-                setStatus(`Загрузка: ${Math.round(percentComplete)}%`);
+                // Убираем текстовое сообщение о проценте:
+                // setStatus(`Загрузка: ${Math.round(percentComplete)}%`); 
+                // больше не вызываем
             }
         }, (error) => {
             console.error('Load error:', error);
