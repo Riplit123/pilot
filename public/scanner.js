@@ -4,8 +4,9 @@ const canvasContainer = document.getElementById('canvas-container');
 const infoPanel = document.getElementById('info-panel');
 const modelTitle = document.getElementById('model-title');
 const modelDescription = document.getElementById('model-description');
-const scanOverlay = document.getElementById('scan-overlay');
-const statusDiv = document.getElementById('status');
+const statusMessageSpan = document.getElementById('status-message');
+const statusIconSpan = document.querySelector('#status-text .status-icon');
+const statusBar = document.getElementById('status-bar');
 
 // Three.js globals
 let scene, camera, renderer, controls, currentModel;
@@ -17,19 +18,21 @@ let scanCanvas, scanContext;
 let lastQRResult = null;
 
 // Helper для обновления статуса
-function setStatus(text, isError = false) {
-    statusDiv.innerText = text;
+function setStatus(message, isError = false) {
+    statusMessageSpan.innerText = message;
     if (isError) {
-        statusDiv.classList.add('error-status');
+        statusBar.classList.add('error-status');
+        statusIconSpan.innerText = '⚠️';
     } else {
-        statusDiv.classList.remove('error-status');
+        statusBar.classList.remove('error-status');
+        statusIconSpan.innerText = message.includes('готова') ? '📷' : (message.includes('QR') ? '🔍' : '🔄');
     }
 }
 
-// Initialize Three.js (transparent background, overlay on video)
+// Initialize Three.js
 function initThree() {
     scene = new THREE.Scene();
-    scene.background = null; // transparent
+    scene.background = null;
 
     camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
     camera.position.set(0, 1, 2);
@@ -67,20 +70,19 @@ function animate() {
     }
 }
 
-// Load 3D model from server
+// Load 3D model
 async function loadModel(modelId) {
     if (!isThreeReady) return;
     if (currentModel) {
         scene.remove(currentModel);
         currentModel = null;
     }
-    setStatus(`🔄 Загрузка модели ${modelId}...`);
+    setStatus(`Загрузка модели...`);
     try {
         const modelUrl = `/api/models/${modelId}/file`;
         const loader = new THREE.GLTFLoader();
         loader.load(modelUrl, (gltf) => {
             currentModel = gltf.scene;
-            // Scale and center model
             const box = new THREE.Box3().setFromObject(currentModel);
             const size = box.getSize(new THREE.Vector3());
             const maxDim = Math.max(size.x, size.y, size.z);
@@ -92,7 +94,6 @@ async function loadModel(modelId) {
             currentModel.position.z = -center.z * scale;
             scene.add(currentModel);
 
-            // Fetch metadata
             fetch(`/api/models/${modelId}`)
                 .then(res => res.json())
                 .then(data => {
@@ -101,25 +102,22 @@ async function loadModel(modelId) {
                     infoPanel.classList.remove('hidden');
                 })
                 .catch(err => console.error('Metadata error:', err));
-            setStatus(`✅ Модель загружена (ID: ${modelId})`);
-            scanOverlay.classList.add('hidden');
+            setStatus(`Модель загружена, вращайте/масштабируйте`);
         }, undefined, (error) => {
             console.error('Load error:', error);
-            setStatus(`❌ Ошибка загрузки модели: ${error.message}`, true);
+            setStatus(`Ошибка загрузки модели`, true);
         });
     } catch (err) {
         console.error(err);
-        setStatus(`❌ Ошибка: ${err.message}`, true);
+        setStatus(`Ошибка: ${err.message}`, true);
     }
 }
 
-// QR scanning from video feed
+// QR scanning
 async function setupQRScanner() {
-    // Проверка, что страница открыта через HTTPS (кроме localhost)
     const isSecure = location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1';
     if (!isSecure) {
-        setStatus('⚠️ Для доступа к камере требуется HTTPS. Откройте страницу через HTTPS или используйте localhost.', true);
-        scanOverlay.innerHTML = '🔒 Доступ к камере недоступен.<br>Используйте HTTPS или локальный хост.';
+        setStatus('Требуется HTTPS (используйте ngrok или localhost)', true);
         return;
     }
 
@@ -127,7 +125,7 @@ async function setupQRScanner() {
         const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
         video.srcObject = stream;
         await video.play();
-        setStatus('📷 Камера готова, сканируйте QR...');
+        setStatus('Камера готова, наведите на QR-код');
 
         scanCanvas = document.createElement('canvas');
         scanContext = scanCanvas.getContext('2d');
@@ -145,30 +143,26 @@ async function setupQRScanner() {
             const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: 'dontInvert' });
             if (code && code.data !== lastQRResult) {
                 lastQRResult = code.data;
-                setStatus(`🔍 Найден QR: ${code.data}`);
+                setStatus(`QR найден, загружаем...`);
                 loadModel(code.data);
-                // Если нужно сканировать только один раз, раскомментируйте:
-                // scanning = false;
+                // Не останавливаем сканирование, чтобы можно было сменить модель
             }
             requestAnimationFrame(scanFrame);
         }
         scanFrame();
     } catch (err) {
         console.error('Camera error:', err);
-        let errorMsg = '❌ Не удалось получить доступ к камере. ';
+        let errorMsg = 'Не удалось получить доступ к камере. ';
         if (err.name === 'NotAllowedError') {
-            errorMsg += 'Пользователь запретил доступ. Разрешите камеру в настройках браузера.';
+            errorMsg += 'Разрешите доступ в настройках браузера.';
         } else if (err.name === 'NotFoundError') {
             errorMsg += 'На устройстве не найдена камера.';
         } else if (err.name === 'NotReadableError') {
             errorMsg += 'Камера занята другим приложением.';
-        } else if (err.name === 'OverconstrainedError') {
-            errorMsg += 'Не удалось найти подходящую камеру (возможно, нет тыльной камеры).';
         } else {
             errorMsg += err.message;
         }
         setStatus(errorMsg, true);
-        scanOverlay.innerHTML = '📷 Ошибка камеры<br>' + errorMsg;
     }
 }
 
