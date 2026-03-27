@@ -31,7 +31,7 @@ if (!fs.existsSync(uploadsDir)) {
 const modelsFilePath = path.join(__dirname, 'models.json');
 console.log(`Models file path: ${modelsFilePath}`);
 
-// Функция загрузки моделей с проверкой существования файла
+// Функции работы с models.json
 function loadModels() {
     if (!fs.existsSync(modelsFilePath)) {
         console.log('models.json not found, creating empty');
@@ -59,7 +59,7 @@ function saveModels(models) {
     }
 }
 
-// Маршрут для получения списка моделей
+// GET /api/models
 app.get('/api/models', (req, res) => {
     try {
         const models = loadModels();
@@ -70,7 +70,40 @@ app.get('/api/models', (req, res) => {
     }
 });
 
-// Загрузка модели
+// DELETE /api/models/:id – удаление модели и связанных файлов
+app.delete('/api/models/:id', (req, res) => {
+    try {
+        const models = loadModels();
+        const modelIndex = models.findIndex(m => m.id === req.params.id);
+        if (modelIndex === -1) {
+            return res.status(404).json({ error: 'Model not found' });
+        }
+        const model = models[modelIndex];
+        // Удаляем файл модели
+        const modelPath = path.join(uploadsDir, model.filename);
+        if (fs.existsSync(modelPath)) {
+            fs.unlinkSync(modelPath);
+            console.log(`Deleted model file: ${modelPath}`);
+        }
+        // Удаляем аудиофайл, если есть
+        if (model.audioFilename) {
+            const audioPath = path.join(uploadsDir, model.audioFilename);
+            if (fs.existsSync(audioPath)) {
+                fs.unlinkSync(audioPath);
+                console.log(`Deleted audio file: ${audioPath}`);
+            }
+        }
+        // Удаляем запись из массива
+        models.splice(modelIndex, 1);
+        saveModels(models);
+        res.json({ message: 'Model deleted successfully' });
+    } catch (err) {
+        console.error('Delete error:', err);
+        res.status(500).json({ error: 'Failed to delete model' });
+    }
+});
+
+// Multer storage
 const storage = multer.diskStorage({
     destination: (req, file, cb) => cb(null, uploadsDir),
     filename: (req, file, cb) => {
@@ -80,6 +113,7 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage, limits: { fileSize: 200 * 1024 * 1024 } });
 
+// POST /api/models
 app.post('/api/models', upload.fields([{ name: 'model', maxCount: 1 }, { name: 'audio', maxCount: 1 }]), async (req, res) => {
     try {
         console.log('Upload request received');
@@ -132,7 +166,7 @@ app.post('/api/models', upload.fields([{ name: 'model', maxCount: 1 }, { name: '
     }
 });
 
-// Получение метаданных модели
+// GET /api/models/:id
 app.get('/api/models/:id', (req, res) => {
     const models = loadModels();
     const model = models.find(m => m.id === req.params.id);
@@ -140,7 +174,7 @@ app.get('/api/models/:id', (req, res) => {
     res.json(model);
 });
 
-// Отдача GLB файла
+// GET /api/models/:id/file
 app.get('/api/models/:id/file', (req, res) => {
     const models = loadModels();
     const model = models.find(m => m.id === req.params.id);
@@ -153,7 +187,7 @@ app.get('/api/models/:id/file', (req, res) => {
     res.sendFile(filePath);
 });
 
-// Отдача аудио
+// GET /api/models/:id/audio
 app.get('/api/models/:id/audio', (req, res) => {
     const models = loadModels();
     const model = models.find(m => m.id === req.params.id);
@@ -163,7 +197,7 @@ app.get('/api/models/:id/audio', (req, res) => {
     res.sendFile(filePath);
 });
 
-// Генерация QR
+// GET /api/qr/:id
 app.get('/api/qr/:id', async (req, res) => {
     const models = loadModels();
     const model = models.find(m => m.id === req.params.id);
