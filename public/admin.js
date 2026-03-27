@@ -1,4 +1,3 @@
-// public/admin.js
 async function loadModels() {
     const container = document.getElementById('models-list');
     if (!container) {
@@ -31,7 +30,10 @@ async function loadModels() {
                     <img src="/api/qr/${model.id}" alt="QR код" 
                          onerror="this.src='data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22150%22%20height%3D%22150%22%20viewBox%3D%220%200%20150%20150%22%3E%3Crect%20width%3D%22150%22%20height%3D%22150%22%20fill%3D%22%23eee%22%2F%3E%3Ctext%20x%3D%2250%25%22%20y%3D%2250%25%22%20dominant-baseline%3D%22middle%22%20text-anchor%3D%22middle%22%20fill%3D%22%23999%22%3EQR%20error%3C%2Ftext%3E%3C%2Fsvg%3E'">
                 </div>
-                <button class="btn-sm" onclick="regenerateQR('${model.id}')">Обновить QR</button>
+                <div class="model-actions">
+                    <button class="btn-sm" onclick="regenerateQR('${model.id}')">Обновить QR</button>
+                    <button class="btn-sm btn-delete" onclick="deleteModel('${model.id}')">Удалить</button>
+                </div>
                 <hr>
                 <small>Создано: ${new Date(model.createdAt).toLocaleString()}</small>
             `;
@@ -50,6 +52,22 @@ function regenerateQR(modelId) {
         img.onerror = function() {
             this.src = 'data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22150%22%20height%3D%22150%22%20viewBox%3D%220%200%20150%20150%22%3E%3Crect%20width%3D%22150%22%20height%3D%22150%22%20fill%3D%22%23eee%22%2F%3E%3Ctext%20x%3D%2250%25%22%20y%3D%2250%25%22%20dominant-baseline%3D%22middle%22%20text-anchor%3D%22middle%22%20fill%3D%22%23999%22%3EQR%20error%3C%2Ftext%3E%3C%2Fsvg%3E';
         };
+    }
+}
+
+async function deleteModel(modelId) {
+    if (!confirm('Вы уверены, что хотите удалить эту модель? Это действие необратимо.')) return;
+    try {
+        const res = await fetch(`/api/models/${modelId}`, { method: 'DELETE' });
+        if (!res.ok) {
+            const err = await res.json();
+            throw new Error(err.error || 'Ошибка удаления');
+        }
+        alert('Модель удалена');
+        loadModels(); // обновляем список
+    } catch (err) {
+        console.error('Delete error:', err);
+        alert(`Ошибка: ${err.message}`);
     }
 }
 
@@ -98,5 +116,4 @@ function escapeHtml(str) {
     });
 }
 
-// Загружаем модели при загрузке страницы
 loadModels();
