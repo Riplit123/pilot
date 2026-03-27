@@ -57,7 +57,7 @@
         .progress-visible {
             opacity: 1 !important;
         }
-        /* Кнопка сброса */
+        /* Кнопка сброса — современный стиль */
         #reset-button {
             position: fixed;
             top: 20px;
@@ -65,22 +65,25 @@
             width: 48px;
             height: 48px;
             border-radius: 50%;
-            background: rgba(0,0,0,0.6);
+            background: rgba(0,0,0,0.5);
             backdrop-filter: blur(8px);
-            border: 1px solid rgba(255,255,255,0.3);
+            border: 1px solid rgba(255,255,255,0.2);
             color: white;
-            font-size: 24px;
+            font-size: 22px;
             cursor: pointer;
             z-index: 4;
             display: flex;
             align-items: center;
             justify-content: center;
-            transition: transform 0.2s, background 0.2s;
-            user-select: none;
+            transition: all 0.2s ease;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+        }
+        #reset-button:hover {
+            background: rgba(0,0,0,0.7);
+            transform: scale(1.05);
         }
         #reset-button:active {
             transform: scale(0.95);
-            background: rgba(0,0,0,0.8);
         }
         /* Плашка описания */
         #info-panel {
@@ -88,49 +91,88 @@
             bottom: 0;
             left: 0;
             right: 0;
-            background: rgba(0, 0, 0, 0.85);
+            background: rgba(0,0,0,0.8);
+            backdrop-filter: blur(12px);
             color: #fff;
-            padding: 16px 20px;
-            border-radius: 24px 24px 0 0;
+            padding: 20px 20px 24px 20px;
+            border-radius: 28px 28px 0 0;
             z-index: 2;
-            font-size: 15px;
             pointer-events: auto;
-            text-align: left;
-            transition: transform 0.5s cubic-bezier(0.2, 0.9, 0.4, 1.1);
-            transform: translateY(calc(100% - 60px));
-            border-top: 1px solid rgba(255,255,255,0.2);
-            cursor: pointer;
-            backdrop-filter: blur(8px);
+            transition: transform 0.4s cubic-bezier(0.2, 0.9, 0.4, 1.2);
+            transform: translateY(calc(100% - 70px));
+            border-top: 1px solid rgba(255,255,255,0.15);
+            font-family: inherit;
         }
         #info-panel.expanded {
             transform: translateY(0);
         }
         .panel-handle {
-            width: 40px;
+            width: 48px;
             height: 4px;
-            background: rgba(255,255,255,0.5);
+            background: rgba(255,255,255,0.4);
             border-radius: 2px;
-            margin: 0 auto 12px auto;
+            margin: 0 auto 16px auto;
         }
-        #info-panel p {
-            margin: 0;
-            font-size: 14px;
-            line-height: 1.4;
+        .panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+        .panel-controls {
+            display: flex;
+            gap: 12px;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+        #info-panel.expanded .panel-controls {
+            opacity: 1;
+        }
+        .ctrl-btn {
+            background: rgba(255,255,255,0.15);
+            border: none;
+            color: white;
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            font-size: 18px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.2s;
+            backdrop-filter: blur(4px);
+        }
+        .ctrl-btn:active {
+            background: rgba(255,255,255,0.3);
+        }
+        #model-description {
+            font-size: 15px;
+            line-height: 1.5;
             max-height: 200px;
             overflow-y: auto;
+            padding-right: 8px;
+            transition: font-size 0.1s ease;
         }
-        #info-panel:not(.expanded) p {
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
+        /* Стилизация скроллбара */
+        #model-description::-webkit-scrollbar {
+            width: 4px;
+        }
+        #model-description::-webkit-scrollbar-track {
+            background: rgba(255,255,255,0.1);
+            border-radius: 2px;
+        }
+        #model-description::-webkit-scrollbar-thumb {
+            background: rgba(255,255,255,0.3);
+            border-radius: 2px;
         }
         .hidden {
             display: none;
         }
         @media (max-width: 600px) {
-            #info-panel { padding: 12px 16px; }
-            .panel-handle { margin-bottom: 8px; }
-            #reset-button { top: 16px; right: 16px; width: 44px; height: 44px; font-size: 22px; }
+            #info-panel { padding: 16px 16px 20px; }
+            .ctrl-btn { width: 32px; height: 32px; font-size: 16px; }
+            #model-description { font-size: 14px; }
         }
     </style>
 </head>
@@ -143,6 +185,14 @@
     <button id="reset-button" aria-label="Сбросить модель">↻</button>
     <div id="info-panel" class="hidden">
         <div class="panel-handle"></div>
+        <div class="panel-header">
+            <div></div> <!-- пустой для выравнивания -->
+            <div class="panel-controls">
+                <button class="ctrl-btn" id="text-speak-btn" title="Озвучить текст">🔊</button>
+                <button class="ctrl-btn" id="text-inc-btn" title="Увеличить шрифт">A+</button>
+                <button class="ctrl-btn" id="text-dec-btn" title="Уменьшить шрифт">A-</button>
+            </div>
+        </div>
         <p id="model-description"></p>
     </div>
 
