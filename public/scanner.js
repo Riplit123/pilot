@@ -7,8 +7,8 @@ const resetButton = document.getElementById('reset-button');
 const audioBtn = document.getElementById('audio-btn');
 const zoomInBtn = document.getElementById('zoom-in');
 const zoomOutBtn = document.getElementById('zoom-out');
-const panelControls = document.getElementById('panel-controls');
 const spinnerOverlay = document.getElementById('spinner-overlay');
+const loadingPercent = document.getElementById('loading-percent');
 
 let scene, camera, renderer, controls, currentModel;
 let isThreeReady = false;
@@ -23,21 +23,16 @@ let currentAudioUrl = null;
 let speechSynth = window.speechSynthesis;
 let isPlaying = false;
 
-// Управление спиннером
+// Управление спиннером с процентами
 function showSpinner() {
     spinnerOverlay.classList.add('active');
+    loadingPercent.textContent = '0%';
+}
+function updateSpinnerPercent(percent) {
+    loadingPercent.textContent = `${Math.round(percent)}%`;
 }
 function hideSpinner() {
     spinnerOverlay.classList.remove('active');
-}
-
-// Панель управления (кнопки) показываем/скрываем внутри плашки
-function showControls(show) {
-    if (show) {
-        panelControls.classList.add('visible');
-    } else {
-        panelControls.classList.remove('visible');
-    }
 }
 
 // Сброс модели
@@ -48,7 +43,6 @@ function resetModel() {
     isModelActive = false;
     isModelLoading = false;
     currentModelId = null;
-    showControls(false);
     if (speechSynth.speaking) speechSynth.cancel();
     isPlaying = false;
     audioBtn.textContent = '🔊';
@@ -60,7 +54,6 @@ async function loadModel(modelId) {
     isModelLoading = true;
     if (currentModel) scene.remove(currentModel);
     showSpinner();
-    showControls(false); // скрываем кнопки на время загрузки
     try {
         const res = await fetch(`/api/models/${modelId}`);
         if (!res.ok) throw new Error('Model not found');
@@ -70,7 +63,7 @@ async function loadModel(modelId) {
         descriptionText.innerText = currentDescription;
         descriptionText.style.fontSize = '15px';
         infoPanel.classList.remove('hidden');
-        infoPanel.classList.remove('expanded'); // свёрнут по умолчанию
+        infoPanel.classList.remove('expanded');
         currentModelId = modelId;
 
         const modelUrl = `/api/models/${modelId}/file`;
@@ -87,14 +80,17 @@ async function loadModel(modelId) {
             hideSpinner();
             isModelLoading = false;
             isModelActive = true;
-            showControls(true); // показываем кнопки после загрузки
-        }, undefined, (err) => {
+        }, (xhr) => {
+            if (xhr.lengthComputable) {
+                const percent = (xhr.loaded / xhr.total) * 100;
+                updateSpinnerPercent(percent);
+            }
+        }, (err) => {
             console.error('Load error:', err);
             hideSpinner();
             isModelLoading = false;
             isModelActive = false;
             infoPanel.classList.add('hidden');
-            showControls(false);
         });
     } catch (err) {
         console.error(err);
@@ -102,11 +98,10 @@ async function loadModel(modelId) {
         isModelLoading = false;
         isModelActive = false;
         infoPanel.classList.add('hidden');
-        showControls(false);
     }
 }
 
-// Аудио: либо кастомный MP3, либо TTS
+// Аудио
 function playDescription() {
     if (isPlaying) {
         if (speechSynth.speaking) speechSynth.cancel();
@@ -172,7 +167,7 @@ infoPanel.addEventListener('click', (e) => {
     }
 });
 
-// QR сканирование (только если модель не активна и не загружается)
+// QR сканирование
 async function setupQRScanner() {
     const isSecure = location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1';
     if (!isSecure) return console.warn('HTTPS required for camera');
@@ -216,7 +211,7 @@ async function setupQRScanner() {
     }
 }
 
-// Инициализация Three.js
+// Three.js init
 function initThree() {
     scene = new THREE.Scene();
     scene.background = null;
@@ -256,7 +251,7 @@ window.addEventListener('resize', () => {
     }
 });
 
-// Загрузка модели из URL-параметра
+// Загрузка из URL
 const urlParams = new URLSearchParams(window.location.search);
 const idFromUrl = urlParams.get('id');
 if (idFromUrl) loadModel(idFromUrl);
