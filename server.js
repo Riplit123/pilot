@@ -14,37 +14,36 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static('public'));
 
+// Логирование всех запросов
+app.use((req, res, next) => {
+    console.log(`${req.method} ${req.url}`);
+    next();
+});
+
 const uploadsDir = path.join(__dirname, 'uploads');
-if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
-console.log('Uploads directory:', uploadsDir);
+if (!fs.existsSync(uploadsDir)) {
+    fs.mkdirSync(uploadsDir, { recursive: true });
+    console.log(`Created uploads directory: ${uploadsDir}`);
+} else {
+    console.log(`Uploads directory exists: ${uploadsDir}`);
+}
 
-// Хранилище для multer
-const storage = multer.diskStorage({
-    destination: (req, file, cb) => cb(null, uploadsDir),
-    filename: (req, file, cb) => {
-        const ext = path.extname(file.originalname).toLowerCase();
-        cb(null, `${uuidv4()}${ext}`);
-    }
-});
-const upload = multer({
-    storage,
-    limits: { fileSize: 200 * 1024 * 1024 }
-});
-
-// Файл models.json
 const modelsFilePath = path.join(__dirname, 'models.json');
-console.log('Models file path:', modelsFilePath);
+console.log(`Models file path: ${modelsFilePath}`);
 
+// Функция загрузки моделей с проверкой существования файла
 function loadModels() {
     if (!fs.existsSync(modelsFilePath)) {
-        console.log('models.json not found, creating empty array');
+        console.log('models.json not found, creating empty');
         saveModels([]);
         return [];
     }
     try {
         const data = fs.readFileSync(modelsFilePath, 'utf8');
         const parsed = JSON.parse(data);
-        return parsed.models || [];
+        const models = parsed.models || [];
+        console.log(`Loaded ${models.length} models`);
+        return models;
     } catch (e) {
         console.error('Error reading models.json:', e);
         return [];
@@ -54,26 +53,36 @@ function loadModels() {
 function saveModels(models) {
     try {
         fs.writeFileSync(modelsFilePath, JSON.stringify({ models }, null, 2));
-        console.log('Models saved successfully');
+        console.log(`Saved ${models.length} models to ${modelsFilePath}`);
     } catch (e) {
-        console.error('Error saving models.json:', e);
+        console.error('Error writing models.json:', e);
     }
 }
 
-// GET /api/models
+// Маршрут для получения списка моделей
 app.get('/api/models', (req, res) => {
     try {
         const models = loadModels();
         res.json(models);
     } catch (err) {
-        console.error(err);
-        res.status(500).json({ error: 'Failed to load models' });
+        console.error('Error in /api/models:', err);
+        res.status(500).json({ error: 'Internal server error' });
     }
 });
 
-// POST /api/models – загрузка модели и аудио
+// Загрузка модели
+const storage = multer.diskStorage({
+    destination: (req, file, cb) => cb(null, uploadsDir),
+    filename: (req, file, cb) => {
+        const ext = path.extname(file.originalname).toLowerCase();
+        cb(null, `${uuidv4()}${ext}`);
+    }
+});
+const upload = multer({ storage, limits: { fileSize: 200 * 1024 * 1024 } });
+
 app.post('/api/models', upload.fields([{ name: 'model', maxCount: 1 }, { name: 'audio', maxCount: 1 }]), async (req, res) => {
     try {
+        console.log('Upload request received');
         const { description } = req.body;
         const modelFile = req.files['model'] ? req.files['model'][0] : null;
         const audioFile = req.files['audio'] ? req.files['audio'][0] : null;
@@ -92,7 +101,7 @@ app.post('/api/models', upload.fields([{ name: 'model', maxCount: 1 }, { name: '
         let audioFileName = null;
         if (audioFile) {
             const audioExt = path.extname(audioFile.originalname).toLowerCase();
-            if (audioExt !== '.mp3') throw new Error('Only .mp3 files are allowed for audio');
+            if (audioExt !== '.mp3') throw new Error('Only .mp3 files are allowed');
             audioFileName = `${modelId}.mp3`;
             const audioPath = path.join(uploadsDir, audioFileName);
             fs.renameSync(audioFile.path, audioPath);
@@ -113,7 +122,6 @@ app.post('/api/models', upload.fields([{ name: 'model', maxCount: 1 }, { name: '
 
         res.status(201).json(newModel);
     } catch (err) {
-        // Cleanup any uploaded files
         if (req.files) {
             Object.values(req.files).flat().forEach(f => {
                 if (f.path && fs.existsSync(f.path)) fs.unlinkSync(f.path);
@@ -124,7 +132,7 @@ app.post('/api/models', upload.fields([{ name: 'model', maxCount: 1 }, { name: '
     }
 });
 
-// GET /api/models/:id
+// Получение метаданных модели
 app.get('/api/models/:id', (req, res) => {
     const models = loadModels();
     const model = models.find(m => m.id === req.params.id);
@@ -132,7 +140,7 @@ app.get('/api/models/:id', (req, res) => {
     res.json(model);
 });
 
-// GET /api/models/:id/file – GLB
+// Отдача GLB файла
 app.get('/api/models/:id/file', (req, res) => {
     const models = loadModels();
     const model = models.find(m => m.id === req.params.id);
@@ -145,7 +153,7 @@ app.get('/api/models/:id/file', (req, res) => {
     res.sendFile(filePath);
 });
 
-// GET /api/models/:id/audio – MP3
+// Отдача аудио
 app.get('/api/models/:id/audio', (req, res) => {
     const models = loadModels();
     const model = models.find(m => m.id === req.params.id);
@@ -155,7 +163,7 @@ app.get('/api/models/:id/audio', (req, res) => {
     res.sendFile(filePath);
 });
 
-// GET /api/qr/:id – QR code with full URL
+// Генерация QR
 app.get('/api/qr/:id', async (req, res) => {
     const models = loadModels();
     const model = models.find(m => m.id === req.params.id);
@@ -174,6 +182,4 @@ app.get('/api/qr/:id', async (req, res) => {
 
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`Server running at http://<your-ip>:${PORT}`);
-    console.log(`Admin panel: http://<your-ip>:${PORT}/admin.html`);
-    console.log(`Scanner page: http://<your-ip>:${PORT}/scanner.html`);
 });
