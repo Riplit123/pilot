@@ -3,12 +3,12 @@ const video = document.getElementById('video-background');
 const canvasContainer = document.getElementById('canvas-container');
 const infoPanel = document.getElementById('info-panel');
 const descriptionText = document.getElementById('description-text');
-const progressContainer = document.getElementById('progress-container');
-const progressBar = document.getElementById('progress-bar');
 const resetButton = document.getElementById('reset-button');
 const audioBtn = document.getElementById('audio-btn');
 const zoomInBtn = document.getElementById('zoom-in');
 const zoomOutBtn = document.getElementById('zoom-out');
+const controlBar = document.getElementById('control-bar');
+const spinnerOverlay = document.getElementById('spinner-overlay');
 
 let scene, camera, renderer, controls, currentModel;
 let isThreeReady = false;
@@ -23,19 +23,129 @@ let currentAudioUrl = null;
 let speechSynth = window.speechSynthesis;
 let isPlaying = false;
 
-// Progress bar
-function showProgress(pct) {
-    if (!progressContainer.classList.contains('progress-visible')) {
-        progressContainer.classList.add('progress-visible');
-    }
-    progressBar.style.width = `${pct}%`;
+// Управление спиннером
+function showSpinner() {
+    spinnerOverlay.classList.add('active');
 }
-function hideProgress() {
-    progressContainer.classList.remove('progress-visible');
-    progressBar.style.width = '0%';
+function hideSpinner() {
+    spinnerOverlay.classList.remove('active');
 }
 
-// Panel swipe (up/down) & click
+// Панель управления (кнопки +/– и динамик) появляется только когда есть модель
+function showControls(show) {
+    if (show) {
+        controlBar.classList.add('visible');
+    } else {
+        controlBar.classList.remove('visible');
+    }
+}
+
+// Сброс модели
+function resetModel() {
+    if (currentModel) scene.remove(currentModel);
+    currentModel = null;
+    infoPanel.classList.add('hidden');
+    isModelActive = false;
+    isModelLoading = false;
+    currentModelId = null;
+    showControls(false);
+    if (speechSynth.speaking) speechSynth.cancel();
+    isPlaying = false;
+    audioBtn.textContent = '🔊';
+}
+
+// Загрузка модели
+async function loadModel(modelId) {
+    if (isModelLoading || isModelActive) return;
+    isModelLoading = true;
+    if (currentModel) scene.remove(currentModel);
+    showSpinner();
+    showControls(false); // прячем кнопки на время загрузки
+    try {
+        const res = await fetch(`/api/models/${modelId}`);
+        if (!res.ok) throw new Error('Model not found');
+        const data = await res.json();
+        currentDescription = data.description || 'Нет описания';
+        currentAudioUrl = data.audioFilename ? `/api/models/${modelId}/audio` : null;
+        descriptionText.innerText = currentDescription;
+        descriptionText.style.fontSize = '15px';
+        infoPanel.classList.remove('hidden');
+        // Сворачиваем панель по умолчанию
+        infoPanel.classList.remove('expanded');
+        currentModelId = modelId;
+
+        const modelUrl = `/api/models/${modelId}/file`;
+        const loader = new THREE.GLTFLoader();
+        loader.load(modelUrl, (gltf) => {
+            currentModel = gltf.scene;
+            const box = new THREE.Box3().setFromObject(currentModel);
+            const size = box.getSize(new THREE.Vector3());
+            const scale = 1.2 / Math.max(size.x, size.y, size.z);
+            currentModel.scale.set(scale, scale, scale);
+            const center = box.getCenter(new THREE.Vector3());
+            currentModel.position.set(-center.x * scale, -center.y * scale, -center.z * scale);
+            scene.add(currentModel);
+            hideSpinner();
+            isModelLoading = false;
+            isModelActive = true;
+            showControls(true); // показываем кнопки после загрузки
+        }, undefined, (err) => {
+            console.error('Load error:', err);
+            hideSpinner();
+            isModelLoading = false;
+            isModelActive = false;
+            infoPanel.classList.add('hidden');
+            showControls(false);
+        });
+    } catch (err) {
+        console.error(err);
+        hideSpinner();
+        isModelLoading = false;
+        isModelActive = false;
+        infoPanel.classList.add('hidden');
+        showControls(false);
+    }
+}
+
+// Аудио: либо кастомный MP3, либо TTS
+function playDescription() {
+    if (isPlaying) {
+        if (speechSynth.speaking) speechSynth.cancel();
+        isPlaying = false;
+        audioBtn.textContent = '🔊';
+        return;
+    }
+    if (currentAudioUrl) {
+        const audio = new Audio(currentAudioUrl);
+        audio.play();
+        audio.onended = () => { isPlaying = false; audioBtn.textContent = '🔊'; };
+        audio.onplay = () => { isPlaying = true; audioBtn.textContent = '🔊⏵'; };
+        audio.onerror = () => { isPlaying = false; audioBtn.textContent = '🔊'; };
+    } else {
+        if (!currentDescription) return;
+        const utterance = new SpeechSynthesisUtterance(currentDescription);
+        utterance.lang = 'ru-RU';
+        utterance.onstart = () => { isPlaying = true; audioBtn.textContent = '🔊⏵'; };
+        utterance.onend = () => { isPlaying = false; audioBtn.textContent = '🔊'; };
+        utterance.onerror = () => { isPlaying = false; audioBtn.textContent = '🔊'; };
+        speechSynth.speak(utterance);
+    }
+}
+
+// Масштабирование текста
+let currentFontSize = 15;
+function zoomText(delta) {
+    currentFontSize = Math.min(28, Math.max(12, currentFontSize + delta));
+    descriptionText.style.fontSize = `${currentFontSize}px`;
+}
+zoomInBtn.onclick = () => zoomText(2);
+zoomOutBtn.onclick = () => zoomText(-2);
+audioBtn.onclick = playDescription;
+
+// Сброс
+resetButton.onclick = () => resetModel();
+
+// Панель описания: свайп вверх/вниз и клик
 let startY = 0, isDraggingPanel = false;
 function togglePanel(expand) {
     if (expand) infoPanel.classList.add('expanded');
@@ -63,107 +173,7 @@ infoPanel.addEventListener('click', (e) => {
     }
 });
 
-// Reset model
-function resetModel() {
-    if (currentModel) scene.remove(currentModel);
-    currentModel = null;
-    infoPanel.classList.add('hidden');
-    isModelActive = false;
-    isModelLoading = false;
-    currentModelId = null;
-    if (speechSynth.speaking) speechSynth.cancel();
-    isPlaying = false;
-    audioBtn.textContent = '🔊';
-}
-
-// Load model (with progress)
-async function loadModel(modelId) {
-    if (isModelLoading || isModelActive) return;
-    isModelLoading = true;
-    if (currentModel) scene.remove(currentModel);
-    showProgress(0);
-    try {
-        const res = await fetch(`/api/models/${modelId}`);
-        if (!res.ok) throw new Error('Model not found');
-        const data = await res.json();
-        currentDescription = data.description || 'Нет описания';
-        currentAudioUrl = data.audioFilename ? `/api/models/${modelId}/audio` : null;
-        descriptionText.innerText = currentDescription;
-        descriptionText.style.fontSize = '15px'; // reset zoom
-        infoPanel.classList.remove('hidden');
-        togglePanel(false);
-        currentModelId = modelId;
-
-        const modelUrl = `/api/models/${modelId}/file`;
-        const loader = new THREE.GLTFLoader();
-        loader.load(modelUrl, (gltf) => {
-            currentModel = gltf.scene;
-            const box = new THREE.Box3().setFromObject(currentModel);
-            const size = box.getSize(new THREE.Vector3());
-            const scale = 1.2 / Math.max(size.x, size.y, size.z);
-            currentModel.scale.set(scale, scale, scale);
-            const center = box.getCenter(new THREE.Vector3());
-            currentModel.position.set(-center.x * scale, -center.y * scale, -center.z * scale);
-            scene.add(currentModel);
-            hideProgress();
-            isModelLoading = false;
-            isModelActive = true;
-        }, (xhr) => {
-            if (xhr.lengthComputable) showProgress((xhr.loaded / xhr.total) * 100);
-        }, (err) => {
-            console.error(err);
-            hideProgress();
-            isModelLoading = false;
-            isModelActive = false;
-            infoPanel.classList.add('hidden');
-        });
-    } catch (err) {
-        console.error(err);
-        hideProgress();
-        isModelLoading = false;
-        isModelActive = false;
-        infoPanel.classList.add('hidden');
-    }
-}
-
-// Audio: either custom MP3 or TTS
-function playDescription() {
-    if (isPlaying) {
-        if (speechSynth.speaking) speechSynth.cancel();
-        isPlaying = false;
-        audioBtn.textContent = '🔊';
-        return;
-    }
-    if (currentAudioUrl) {
-        const audio = new Audio(currentAudioUrl);
-        audio.play();
-        audio.onended = () => { isPlaying = false; audioBtn.textContent = '🔊'; };
-        audio.onplay = () => { isPlaying = true; audioBtn.textContent = '🔊⏵'; };
-        audio.onerror = () => { isPlaying = false; audioBtn.textContent = '🔊'; };
-    } else {
-        if (!currentDescription) return;
-        const utterance = new SpeechSynthesisUtterance(currentDescription);
-        utterance.lang = 'ru-RU';
-        utterance.onstart = () => { isPlaying = true; audioBtn.textContent = '🔊⏵'; };
-        utterance.onend = () => { isPlaying = false; audioBtn.textContent = '🔊'; };
-        utterance.onerror = () => { isPlaying = false; audioBtn.textContent = '🔊'; };
-        speechSynth.speak(utterance);
-    }
-}
-
-// Text zoom
-let currentFontSize = 15;
-function zoomText(delta) {
-    currentFontSize = Math.min(28, Math.max(12, currentFontSize + delta));
-    descriptionText.style.fontSize = `${currentFontSize}px`;
-}
-zoomInBtn.onclick = () => zoomText(2);
-zoomOutBtn.onclick = () => zoomText(-2);
-
-// Reset button action
-resetButton.onclick = () => resetModel();
-
-// QR scanning (only when no model active)
+// QR сканирование (только если модель не активна и не загружается)
 async function setupQRScanner() {
     const isSecure = location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1';
     if (!isSecure) return console.warn('HTTPS required for camera');
@@ -207,7 +217,7 @@ async function setupQRScanner() {
     }
 }
 
-// Three.js init
+// Инициализация Three.js
 function initThree() {
     scene = new THREE.Scene();
     scene.background = null;
@@ -247,12 +257,10 @@ window.addEventListener('resize', () => {
     }
 });
 
-// URL parameter handling
+// Загрузка модели из URL-параметра
 const urlParams = new URLSearchParams(window.location.search);
 const idFromUrl = urlParams.get('id');
 if (idFromUrl) loadModel(idFromUrl);
 
 initThree();
 setupQRScanner();
-
-audioBtn.onclick = playDescription;
