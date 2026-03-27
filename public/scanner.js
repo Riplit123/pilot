@@ -7,7 +7,7 @@ const resetButton = document.getElementById('reset-button');
 const audioBtn = document.getElementById('audio-btn');
 const zoomInBtn = document.getElementById('zoom-in');
 const zoomOutBtn = document.getElementById('zoom-out');
-const controlBar = document.getElementById('control-bar');
+const panelControls = document.getElementById('panel-controls');
 const spinnerOverlay = document.getElementById('spinner-overlay');
 
 let scene, camera, renderer, controls, currentModel;
@@ -31,12 +31,12 @@ function hideSpinner() {
     spinnerOverlay.classList.remove('active');
 }
 
-// Панель управления (кнопки +/– и динамик) появляется только когда есть модель
+// Панель управления (кнопки) показываем/скрываем внутри плашки
 function showControls(show) {
     if (show) {
-        controlBar.classList.add('visible');
+        panelControls.classList.add('visible');
     } else {
-        controlBar.classList.remove('visible');
+        panelControls.classList.remove('visible');
     }
 }
 
@@ -60,7 +60,7 @@ async function loadModel(modelId) {
     isModelLoading = true;
     if (currentModel) scene.remove(currentModel);
     showSpinner();
-    showControls(false); // прячем кнопки на время загрузки
+    showControls(false); // скрываем кнопки на время загрузки
     try {
         const res = await fetch(`/api/models/${modelId}`);
         if (!res.ok) throw new Error('Model not found');
@@ -70,8 +70,7 @@ async function loadModel(modelId) {
         descriptionText.innerText = currentDescription;
         descriptionText.style.fontSize = '15px';
         infoPanel.classList.remove('hidden');
-        // Сворачиваем панель по умолчанию
-        infoPanel.classList.remove('expanded');
+        infoPanel.classList.remove('expanded'); // свёрнут по умолчанию
         currentModelId = modelId;
 
         const modelUrl = `/api/models/${modelId}/file`;
