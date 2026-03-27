@@ -5,7 +5,7 @@ async function loadModels() {
         const res = await fetch('/api/models');
         const models = await res.json();
         if (!models.length) {
-            container.innerHTML = '<p>Нет моделей.</p>';
+            container.innerHTML = '<p>Нет загруженных моделей.</p>';
             return;
         }
         container.innerHTML = '';
@@ -13,21 +13,19 @@ async function loadModels() {
             const div = document.createElement('div');
             div.className = 'model-item';
             div.innerHTML = `
-                <h3>${escapeHtml(model.originalName)}</h3>
-                <p><strong>Описание:</strong> ${escapeHtml(model.description) || '—'}</p>
-                <p><strong>ID:</strong> ${model.id}</p>
-                ${model.audioFilename ? `<p><strong>🎵 Аудио:</strong> есть</p>` : ''}
+                <strong>${escapeHtml(model.originalName)}</strong>
+                <p style="margin: 8px 0; color:#555;">${escapeHtml(model.description) || '—'}</p>
                 <div class="qr-code">
                     <img src="/api/qr/${model.id}" alt="QR код">
                 </div>
-                <button class="btn-sm" onclick="regenerateQR('${model.id}')">🔄 Обновить QR</button>
+                <button class="btn-sm" onclick="regenerateQR('${model.id}')">Обновить QR</button>
                 <hr>
                 <small>Создано: ${new Date(model.createdAt).toLocaleString()}</small>
             `;
             container.appendChild(div);
         }
     } catch (err) {
-        container.innerHTML = '<p>Ошибка загрузки.</p>';
+        container.innerHTML = '<p>Ошибка загрузки списка.</p>';
     }
 }
 
@@ -37,35 +35,28 @@ function regenerateQR(modelId) {
 }
 
 const form = document.getElementById('upload-form');
-const uploadStatus = document.getElementById('upload-status');
+const statusDiv = document.getElementById('upload-status');
 
 form.addEventListener('submit', async (e) => {
     e.preventDefault();
     const formData = new FormData(form);
-    uploadStatus.textContent = 'Загрузка...';
-    uploadStatus.style.color = 'blue';
+    statusDiv.textContent = 'Загрузка...';
+    statusDiv.style.color = '#4c9aff';
     try {
         const res = await fetch('/api/models', { method: 'POST', body: formData });
-        if (!res.ok) throw new Error(await res.text());
+        if (!res.ok) {
+            const err = await res.json();
+            throw new Error(err.error || 'Ошибка');
+        }
         const newModel = await res.json();
-        uploadStatus.textContent = `✅ Модель "${newModel.originalName}" загружена! QR сгенерирован.`;
-        uploadStatus.style.color = 'green';
+        statusDiv.textContent = `✅ Модель "${newModel.originalName}" загружена!`;
+        statusDiv.style.color = 'green';
         form.reset();
         loadModels();
     } catch (err) {
-        uploadStatus.textContent = `❌ Ошибка: ${err.message}`;
-        uploadStatus.style.color = 'red';
+        statusDiv.textContent = `❌ Ошибка: ${err.message}`;
+        statusDiv.style.color = 'red';
     }
 });
-
-function escapeHtml(str) {
-    if (!str) return '';
-    return str.replace(/[&<>]/g, function(m) {
-        if (m === '&') return '&amp;';
-        if (m === '<') return '&lt;';
-        if (m === '>') return '&gt;';
-        return m;
-    });
-}
 
 loadModels();
