@@ -6,122 +6,52 @@
     <title>Admin Panel – 3D Models & QR Codes</title>
     <link rel="stylesheet" href="style.css">
     <style>
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: #f0f2f5;
-            margin: 0;
-            padding: 20px;
-        }
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-        }
-        h1 {
-            color: #333;
-        }
-        .card {
-            background: white;
-            border-radius: 12px;
-            padding: 20px;
-            margin-bottom: 30px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-        }
-        .form-group {
-            margin-bottom: 15px;
-        }
-        label {
-            display: block;
-            margin-bottom: 5px;
-            font-weight: bold;
-        }
-        input[type="text"], textarea, input[type="file"] {
-            width: 100%;
-            padding: 8px;
-            border: 1px solid #ccc;
-            border-radius: 6px;
-            font-size: 14px;
-        }
-        button {
-            background: #007bff;
-            color: white;
-            border: none;
-            padding: 10px 20px;
-            border-radius: 6px;
-            cursor: pointer;
-            font-size: 14px;
-        }
-        button:hover {
-            background: #0056b3;
-        }
-        .model-list {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-            gap: 20px;
-        }
-        .model-item {
-            background: white;
-            border-radius: 12px;
-            padding: 15px;
-            box-shadow: 0 1px 4px rgba(0,0,0,0.1);
-        }
-        .model-item h3 {
-            margin-top: 0;
-            font-size: 18px;
-        }
-        .model-item p {
-            color: #555;
-            font-size: 14px;
-        }
-        .qr-code {
-            text-align: center;
-            margin: 10px 0;
-        }
-        .qr-code img {
-            max-width: 150px;
-            border: 1px solid #ddd;
-            border-radius: 8px;
-        }
-        .btn-sm {
-            padding: 5px 10px;
-            font-size: 12px;
-            margin-right: 5px;
-        }
-        .status {
-            margin-top: 10px;
-            font-size: 12px;
-            color: green;
-        }
-        hr {
-            margin: 15px 0;
-        }
+        body { font-family: 'Inter', system-ui, sans-serif; background: #f0f2f5; margin: 0; padding: 20px; }
+        .container { max-width: 1200px; margin: 0 auto; }
+        .card { background: white; border-radius: 24px; padding: 24px; margin-bottom: 30px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
+        h1, h2 { color: #1a1a1a; font-weight: 500; }
+        .form-group { margin-bottom: 20px; }
+        label { display: block; margin-bottom: 8px; font-weight: 500; color: #333; }
+        input, textarea { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 12px; font-size: 14px; }
+        button { background: #007bff; color: white; border: none; padding: 10px 20px; border-radius: 12px; cursor: pointer; font-weight: 500; transition: 0.2s; }
+        button:hover { background: #0056b3; }
+        .model-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 24px; }
+        .model-item { background: white; border-radius: 20px; padding: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
+        .qr-code { text-align: center; margin: 12px 0; }
+        .qr-code img { max-width: 140px; border-radius: 12px; }
+        .status { margin-top: 12px; font-size: 13px; color: green; }
+        hr { margin: 16px 0; border: none; border-top: 1px solid #eee; }
+        .btn-sm { background: #6c757d; padding: 6px 12px; font-size: 12px; margin-right: 8px; }
+        .btn-sm:hover { background: #5a6268; }
     </style>
 </head>
 <body>
 <div class="container">
-    <h1>📦 Админ панель – Управление 3D моделями</h1>
-
+    <h1>📦 Админ панель</h1>
     <div class="card">
-        <h2>➕ Загрузить новую модель (.glb)</h2>
+        <h2>➕ Загрузить модель (.glb) + описание + аудио (необязательно)</h2>
         <form id="upload-form" enctype="multipart/form-data">
             <div class="form-group">
                 <label>Описание модели:</label>
-                <textarea name="description" rows="3" placeholder="Введите описание модели..."></textarea>
+                <textarea name="description" rows="3" placeholder="Введите описание..."></textarea>
             </div>
             <div class="form-group">
-                <label>Файл модели (.glb):</label>
+                <label>3D модель (.glb):</label>
                 <input type="file" name="model" accept=".glb" required>
+            </div>
+            <div class="form-group">
+                <label>Аудио файл (.mp3, необязательно):</label>
+                <input type="file" name="audio" accept=".mp3">
             </div>
             <button type="submit">Загрузить и сгенерировать QR</button>
             <div id="upload-status" class="status"></div>
         </form>
     </div>
-
     <div class="card">
         <h2>📋 Список моделей</h2>
         <div id="models-list" class="model-list">Загрузка...</div>
     </div>
 </div>
-
 <script src="admin.js"></script>
 </body>
 </html>
