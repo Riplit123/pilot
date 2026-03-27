@@ -9,15 +9,14 @@
             margin: 0;
             padding: 0;
             box-sizing: border-box;
-            user-select: none; /* предотвращает выделение текста при касаниях кнопок */
-            -webkit-tap-highlight-color: transparent; /* убирает синее выделение на мобильных */
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
         }
         body {
             overflow: hidden;
             font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
             background: #000;
         }
-        /* Видео и канвас */
         #video-background {
             position: fixed;
             top: 0;
@@ -36,7 +35,6 @@
             z-index: 1;
             pointer-events: auto;
         }
-        /* Кнопка сброса */
         #reset-button {
             position: fixed;
             top: 20px;
@@ -61,7 +59,6 @@
             transform: scale(0.94);
             background: rgba(0,0,0,0.7);
         }
-        /* Центральный круговой спиннер */
         .spinner-overlay {
             position: fixed;
             top: 0;
@@ -94,46 +91,7 @@
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
-        /* Панель управления (над плашкой описания) */
-        .control-bar {
-            position: fixed;
-            bottom: 90px;
-            left: 0;
-            right: 0;
-            display: flex;
-            justify-content: center;
-            gap: 20px;
-            padding: 12px 20px;
-            z-index: 5;
-            opacity: 0;
-            transition: opacity 0.2s;
-            pointer-events: none;
-        }
-        .control-bar.visible {
-            opacity: 1;
-            pointer-events: auto;
-        }
-        .control-btn {
-            width: 48px;
-            height: 48px;
-            border-radius: 30px;
-            background: rgba(0,0,0,0.6);
-            backdrop-filter: blur(8px);
-            border: 1px solid rgba(255,255,255,0.2);
-            color: white;
-            font-size: 22px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            transition: 0.2s;
-            outline: none;
-        }
-        .control-btn:active {
-            transform: scale(0.94);
-            background: rgba(0,0,0,0.8);
-        }
-        /* Плашка описания (glassmorphism) */
+        /* Плашка описания с кнопками внутри */
         #info-panel {
             position: fixed;
             bottom: 0;
@@ -163,6 +121,40 @@
             margin: 0 auto 16px auto;
             cursor: grab;
         }
+        /* Контейнер для кнопок внутри плашки */
+        .panel-controls {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            margin-bottom: 16px;
+            opacity: 0;
+            transition: opacity 0.2s;
+            pointer-events: none;
+        }
+        .panel-controls.visible {
+            opacity: 1;
+            pointer-events: auto;
+        }
+        .control-btn {
+            width: 48px;
+            height: 48px;
+            border-radius: 30px;
+            background: rgba(0,0,0,0.6);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(255,255,255,0.2);
+            color: white;
+            font-size: 22px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: 0.2s;
+            outline: none;
+        }
+        .control-btn:active {
+            transform: scale(0.94);
+            background: rgba(0,0,0,0.8);
+        }
         #description-text {
             font-size: 15px;
             line-height: 1.5;
@@ -170,7 +162,7 @@
             overflow-y: auto;
             transition: font-size 0.2s;
             padding-right: 8px;
-            user-select: text; /* позволяет выделять текст описания */
+            user-select: text;
         }
         #info-panel:not(.expanded) #description-text {
             white-space: nowrap;
@@ -183,7 +175,7 @@
         }
         @media (max-width: 600px) {
             .control-btn { width: 44px; height: 44px; font-size: 20px; }
-            .control-bar { bottom: 80px; gap: 16px; }
+            .panel-controls { gap: 16px; margin-bottom: 12px; }
             #info-panel { padding: 14px 20px; }
         }
     </style>
@@ -195,13 +187,13 @@
     <div class="spinner-overlay" id="spinner-overlay">
         <div class="spinner"></div>
     </div>
-    <div class="control-bar" id="control-bar">
-        <button class="control-btn" id="audio-btn">🔊</button>
-        <button class="control-btn" id="zoom-out">−</button>
-        <button class="control-btn" id="zoom-in">+</button>
-    </div>
     <div id="info-panel" class="hidden">
         <div class="panel-handle"></div>
+        <div class="panel-controls" id="panel-controls">
+            <button class="control-btn" id="audio-btn">🔊</button>
+            <button class="control-btn" id="zoom-out">−</button>
+            <button class="control-btn" id="zoom-in">+</button>
+        </div>
         <div id="description-text"></div>
     </div>
 
