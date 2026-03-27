@@ -4,7 +4,25 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>AR Viewer</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,300&display=swap" rel="stylesheet">
     <style>
+        :root {
+            --cyan: #00e5ff;
+            --cyan-dim: rgba(0, 229, 255, 0.15);
+            --cyan-glow: rgba(0, 229, 255, 0.35);
+            --panel-bg: rgba(8, 10, 18, 0.82);
+            --panel-border: rgba(255, 255, 255, 0.09);
+            --text-primary: #f0f4ff;
+            --text-secondary: rgba(240, 244, 255, 0.55);
+            --btn-bg: rgba(255, 255, 255, 0.07);
+            --btn-border: rgba(255, 255, 255, 0.14);
+            --btn-hover: rgba(0, 229, 255, 0.12);
+            --radius-panel: 28px;
+            --radius-btn: 50%;
+        }
+
         * {
             margin: 0;
             padding: 0;
@@ -12,198 +30,437 @@
             user-select: none;
             -webkit-tap-highlight-color: transparent;
         }
+
         body {
             overflow: hidden;
-            font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+            font-family: 'DM Sans', system-ui, sans-serif;
             background: #000;
         }
+
+        /* ─── Video background ─── */
         #video-background {
             position: fixed;
-            top: 0;
-            left: 0;
+            inset: 0;
             width: 100%;
             height: 100%;
             object-fit: cover;
             z-index: 0;
         }
+
+        /* ─── Three.js canvas ─── */
         #canvas-container {
             position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
+            inset: 0;
             z-index: 1;
             pointer-events: auto;
         }
-        /* Кнопка сброса */
+
+        /* ─── Reset button ─── */
         #reset-button {
             position: fixed;
-            top: 20px;
-            right: 20px;
-            width: 48px;
-            height: 48px;
+            top: 22px;
+            right: 22px;
+            width: 46px;
+            height: 46px;
             border-radius: 50%;
-            background: rgba(0,0,0,0.5);
-            backdrop-filter: blur(8px);
-            border: 1px solid rgba(255,255,255,0.2);
-            color: white;
-            font-size: 24px;
+            background: var(--panel-bg);
+            backdrop-filter: blur(16px) saturate(160%);
+            -webkit-backdrop-filter: blur(16px) saturate(160%);
+            border: 1px solid var(--panel-border);
+            color: var(--text-primary);
+            font-size: 20px;
             cursor: pointer;
             z-index: 4;
             display: flex;
             align-items: center;
             justify-content: center;
-            transition: all 0.2s ease;
+            transition: transform 0.2s, border-color 0.2s, box-shadow 0.2s;
             outline: none;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.4);
         }
         #reset-button:active {
-            transform: scale(0.94);
-            background: rgba(0,0,0,0.7);
+            transform: scale(0.90) rotate(-30deg);
+            border-color: var(--cyan);
+            box-shadow: 0 0 16px var(--cyan-glow);
         }
-        /* Спиннер с процентами */
+
+        /* ─── Scan hint ─── */
+        #scan-hint {
+            position: fixed;
+            top: 22px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 4;
+            background: var(--panel-bg);
+            backdrop-filter: blur(16px) saturate(160%);
+            -webkit-backdrop-filter: blur(16px) saturate(160%);
+            border: 1px solid var(--panel-border);
+            border-radius: 100px;
+            padding: 9px 20px;
+            color: var(--text-secondary);
+            font-family: 'Syne', sans-serif;
+            font-size: 12px;
+            font-weight: 600;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            white-space: nowrap;
+            transition: opacity 0.4s, transform 0.4s;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+        }
+        #scan-hint.hidden {
+            opacity: 0;
+            transform: translateX(-50%) translateY(-12px);
+            pointer-events: none;
+        }
+        .hint-dot {
+            display: inline-block;
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: var(--cyan);
+            margin-right: 8px;
+            animation: pulse-dot 1.8s ease-in-out infinite;
+            vertical-align: middle;
+            box-shadow: 0 0 8px var(--cyan);
+        }
+        @keyframes pulse-dot {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.4; transform: scale(0.7); }
+        }
+
+        /* ─── Spinner overlay ─── */
         .spinner-overlay {
             position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0,0,0,0.7);
-            backdrop-filter: blur(8px);
+            inset: 0;
+            background: rgba(4, 6, 14, 0.75);
+            backdrop-filter: blur(12px) saturate(140%);
+            -webkit-backdrop-filter: blur(12px) saturate(140%);
             z-index: 10;
             display: flex;
             align-items: center;
             justify-content: center;
             visibility: hidden;
             opacity: 0;
-            transition: visibility 0s, opacity 0.2s;
+            transition: visibility 0s 0.25s, opacity 0.25s;
         }
         .spinner-overlay.active {
             visibility: visible;
             opacity: 1;
+            transition: visibility 0s, opacity 0.25s;
         }
-        .spinner-container {
-            text-align: center;
+        .spinner-box {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
         }
-        .spinner {
-            width: 60px;
-            height: 60px;
-            border: 4px solid rgba(255,255,255,0.3);
-            border-top: 4px solid #4c9aff;
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-            margin: 0 auto 16px;
+        .spinner-ring {
+            position: relative;
+            width: 64px;
+            height: 64px;
+        }
+        .spinner-ring svg {
+            width: 64px;
+            height: 64px;
+            animation: spin 1.4s linear infinite;
+        }
+        .spinner-ring circle {
+            fill: none;
+            stroke: url(#spinGrad);
+            stroke-width: 3;
+            stroke-linecap: round;
+            stroke-dasharray: 140;
+            stroke-dashoffset: 40;
         }
         @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
+            to { transform: rotate(360deg); }
         }
         .loading-percent {
-            color: white;
-            font-size: 24px;
-            font-weight: 500;
-            letter-spacing: 1px;
+            color: var(--text-primary);
+            font-family: 'Syne', sans-serif;
+            font-size: 22px;
+            font-weight: 700;
+            letter-spacing: 0.04em;
         }
-        /* Плашка описания с кнопками внутри (над текстом) */
+        .loading-label {
+            color: var(--text-secondary);
+            font-size: 11px;
+            font-weight: 500;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            margin-top: -12px;
+        }
+
+        /* ─── Info panel ─── */
         #info-panel {
             position: fixed;
             bottom: 0;
             left: 0;
             right: 0;
-            background: rgba(20, 20, 30, 0.85);
-            backdrop-filter: blur(20px);
-            color: white;
-            padding: 18px 24px;
-            border-radius: 32px 32px 0 0;
-            z-index: 2;
+            z-index: 3;
             pointer-events: auto;
-            transition: transform 0.4s cubic-bezier(0.2, 0.9, 0.4, 1.1);
-            transform: translateY(calc(100% - 70px));
-            border-top: 1px solid rgba(255,255,255,0.2);
-            cursor: grab;
+            /* The panel moves up/down; controls float above its top edge */
         }
-        #info-panel.expanded {
-            transform: translateY(0);
-            cursor: default;
-        }
-        .panel-handle {
-            width: 48px;
-            height: 4px;
-            background: rgba(255,255,255,0.4);
-            border-radius: 2px;
-            margin: 0 auto 16px auto;
-            cursor: grab;
-        }
-        /* Блок с кнопками (внутри плашки, но над текстом) */
-        .panel-controls {
+
+        /* Floating controls — positioned absolute relative to panel,
+           sitting ABOVE the panel's visible top. They move with it. */
+        .floating-controls {
+            position: absolute;
+            bottom: calc(100% + 14px); /* 14px above panel top */
+            left: 50%;
+            transform: translateX(-50%);
             display: flex;
-            justify-content: center;
-            gap: 20px;
-            margin-bottom: 12px;
-            margin-top: -10px; /* негативный отступ, чтобы кнопки были выше */
+            align-items: center;
+            gap: 10px;
+            background: var(--panel-bg);
+            backdrop-filter: blur(20px) saturate(160%);
+            -webkit-backdrop-filter: blur(20px) saturate(160%);
+            border: 1px solid var(--panel-border);
+            border-radius: 100px;
+            padding: 8px 14px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.45), 0 0 0 1px rgba(255,255,255,0.04);
+            opacity: 0;
+            transform: translateX(-50%) translateY(10px);
+            pointer-events: none;
+            transition: opacity 0.35s, transform 0.35s;
         }
-        .control-btn {
-            width: 48px;
-            height: 48px;
-            border-radius: 30px;
-            background: rgba(0,0,0,0.6);
-            backdrop-filter: blur(8px);
-            border: 1px solid rgba(255,255,255,0.2);
-            color: white;
-            font-size: 22px;
+        #info-panel.visible .floating-controls {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+            pointer-events: auto;
+        }
+
+        .ctrl-btn {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: var(--btn-bg);
+            border: 1px solid var(--btn-border);
+            color: var(--text-primary);
+            font-size: 18px;
             display: flex;
             align-items: center;
             justify-content: center;
             cursor: pointer;
-            transition: 0.2s;
             outline: none;
+            transition: background 0.2s, border-color 0.2s, transform 0.15s, box-shadow 0.2s;
+            flex-shrink: 0;
+            line-height: 1;
         }
-        .control-btn:active {
-            transform: scale(0.94);
-            background: rgba(0,0,0,0.8);
+        .ctrl-btn:active {
+            transform: scale(0.88);
         }
+        .ctrl-btn:hover {
+            background: var(--btn-hover);
+            border-color: var(--cyan);
+            box-shadow: 0 0 12px var(--cyan-glow);
+        }
+        .ctrl-btn.audio-active {
+            background: var(--cyan-dim);
+            border-color: var(--cyan);
+            box-shadow: 0 0 16px var(--cyan-glow);
+            color: var(--cyan);
+        }
+
+        .ctrl-divider {
+            width: 1px;
+            height: 22px;
+            background: rgba(255,255,255,0.1);
+            flex-shrink: 0;
+        }
+
+        /* Panel body */
+        .panel-body {
+            background: var(--panel-bg);
+            backdrop-filter: blur(24px) saturate(180%);
+            -webkit-backdrop-filter: blur(24px) saturate(180%);
+            border-top: 1px solid var(--panel-border);
+            border-radius: var(--radius-panel) var(--radius-panel) 0 0;
+            padding: 0 24px 32px;
+            transform: translateY(100%);
+            transition: transform 0.45s cubic-bezier(0.16, 1, 0.3, 1);
+            box-shadow: 0 -8px 40px rgba(0,0,0,0.5);
+        }
+        #info-panel.visible .panel-body {
+            transform: translateY(calc(100% - 68px));
+        }
+        #info-panel.visible.expanded .panel-body {
+            transform: translateY(0);
+        }
+
+        .panel-handle-area {
+            padding: 14px 0 10px;
+            cursor: grab;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .panel-handle {
+            width: 40px;
+            height: 3.5px;
+            background: rgba(255,255,255,0.2);
+            border-radius: 2px;
+            transition: background 0.2s, width 0.2s;
+        }
+        .panel-handle-area:active .panel-handle {
+            background: rgba(255,255,255,0.45);
+            width: 52px;
+        }
+
+        .panel-peek {
+            /* Visible strip when collapsed — shows title only */
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            height: 28px;
+            margin-bottom: 0;
+            overflow: hidden;
+        }
+        .panel-peek-label {
+            font-family: 'Syne', sans-serif;
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            color: var(--text-secondary);
+        }
+        .panel-peek-arrow {
+            color: var(--text-secondary);
+            font-size: 13px;
+            transition: transform 0.35s;
+        }
+        #info-panel.expanded .panel-peek-arrow {
+            transform: rotate(180deg);
+        }
+
+        /* Full description */
+        .panel-content {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.45s cubic-bezier(0.16, 1, 0.3, 1),
+                        opacity 0.3s;
+            opacity: 0;
+        }
+        #info-panel.expanded .panel-content {
+            max-height: 55vh;
+            opacity: 1;
+        }
+
+        .panel-content-inner {
+            padding-top: 14px;
+            padding-bottom: 4px;
+            border-top: 1px solid rgba(255,255,255,0.07);
+            margin-top: 6px;
+        }
+
         #description-text {
             font-size: 15px;
-            line-height: 1.5;
-            max-height: 200px;
+            line-height: 1.65;
+            color: var(--text-primary);
+            font-weight: 300;
+            max-height: 48vh;
             overflow-y: auto;
-            transition: font-size 0.2s;
-            padding-right: 8px;
+            padding-right: 4px;
             user-select: text;
         }
-        #info-panel:not(.expanded) #description-text {
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            max-height: none;
+        #description-text::-webkit-scrollbar {
+            width: 3px;
         }
-        .hidden {
-            display: none;
+        #description-text::-webkit-scrollbar-track {
+            background: transparent;
         }
+        #description-text::-webkit-scrollbar-thumb {
+            background: rgba(255,255,255,0.15);
+            border-radius: 2px;
+        }
+
+        .hidden { display: none !important; }
+
+        /* Glow line on panel top */
+        .panel-glow-line {
+            position: absolute;
+            top: 0;
+            left: 20%;
+            right: 20%;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, var(--cyan-glow), transparent);
+            border-radius: 1px;
+        }
+
+        /* ─── Responsive ─── */
         @media (max-width: 600px) {
-            .control-btn { width: 44px; height: 44px; font-size: 20px; }
-            .panel-controls { gap: 16px; margin-top: -8px; }
-            #info-panel { padding: 14px 20px; }
+            .ctrl-btn { width: 38px; height: 38px; font-size: 17px; }
+            .floating-controls { gap: 8px; padding: 7px 12px; }
+            #description-text { font-size: 14px; }
         }
     </style>
 </head>
 <body>
+
+    <!-- SVG gradient for spinner -->
+    <svg width="0" height="0" style="position:absolute">
+        <defs>
+            <linearGradient id="spinGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="#00e5ff"/>
+                <stop offset="100%" stop-color="rgba(0,229,255,0)"/>
+            </linearGradient>
+        </defs>
+    </svg>
+
     <video id="video-background" autoplay playsinline muted></video>
     <div id="canvas-container"></div>
-    <button id="reset-button">↻</button>
+
+    <!-- Reset -->
+    <button id="reset-button" title="Сбросить">↻</button>
+
+    <!-- Scan hint -->
+    <div id="scan-hint">
+        <span class="hint-dot"></span>Направьте камеру на QR-код
+    </div>
+
+    <!-- Spinner -->
     <div class="spinner-overlay" id="spinner-overlay">
-        <div class="spinner-container">
-            <div class="spinner"></div>
+        <div class="spinner-box">
+            <div class="spinner-ring">
+                <svg viewBox="0 0 64 64">
+                    <circle cx="32" cy="32" r="28"/>
+                </svg>
+            </div>
             <div class="loading-percent" id="loading-percent">0%</div>
+            <div class="loading-label">Загрузка модели</div>
         </div>
     </div>
+
+    <!-- Info panel -->
     <div id="info-panel" class="hidden">
-        <div class="panel-handle"></div>
-        <div class="panel-controls">
-            <button class="control-btn" id="audio-btn">🔊</button>
-            <button class="control-btn" id="zoom-out">−</button>
-            <button class="control-btn" id="zoom-in">+</button>
+
+        <!-- Floating controls — ABOVE the panel, move with it -->
+        <div class="floating-controls">
+            <button class="ctrl-btn" id="audio-btn" title="Озвучить">🔊</button>
+            <div class="ctrl-divider"></div>
+            <button class="ctrl-btn" id="zoom-out" title="Уменьшить шрифт">A−</button>
+            <button class="ctrl-btn" id="zoom-in"  title="Увеличить шрифт">A+</button>
         </div>
-        <div id="description-text"></div>
+
+        <!-- Panel body slides up from bottom -->
+        <div class="panel-body">
+            <div class="panel-glow-line"></div>
+
+            <div class="panel-handle-area" id="panel-handle">
+                <div class="panel-handle"></div>
+            </div>
+
+            <div class="panel-peek">
+                <span class="panel-peek-label">Описание модели</span>
+                <span class="panel-peek-arrow">▲</span>
+            </div>
+
+            <div class="panel-content">
+                <div class="panel-content-inner">
+                    <div id="description-text"></div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
