@@ -9,10 +9,11 @@
             margin: 0;
             padding: 0;
             box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent; /* убирает синий фон при тапе на мобильных */
         }
         body {
             overflow: hidden;
-            font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+            font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
             background: #000;
         }
         #video-background {
@@ -33,34 +34,20 @@
             z-index: 1;
             pointer-events: auto;
         }
-        /* Progress bar */
-        #progress-container {
-            position: fixed;
-            bottom: 30px;
-            left: 20px;
-            right: 20px;
-            height: 3px;
-            background: rgba(255,255,255,0.2);
-            border-radius: 3px;
-            z-index: 3;
-            opacity: 0;
-            transition: opacity 0.2s;
-            pointer-events: none;
-        }
-        #progress-bar {
-            height: 100%;
-            width: 0%;
-            background: #4c9aff;
-            border-radius: 3px;
-            transition: width 0.1s linear;
-        }
-        .progress-visible { opacity: 1; }
 
-        /* Reset button */
-        #reset-button {
+        /* Верхняя панель с кнопкой сброса и прогресс-баром */
+        #top-bar {
             position: fixed;
             top: 20px;
             right: 20px;
+            z-index: 4;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 12px;
+        }
+        /* Кнопка сброса */
+        #reset-button {
             width: 48px;
             height: 48px;
             border-radius: 50%;
@@ -70,15 +57,43 @@
             color: white;
             font-size: 24px;
             cursor: pointer;
-            z-index: 4;
             display: flex;
             align-items: center;
             justify-content: center;
             transition: all 0.2s ease;
+            outline: none;
+            user-select: none;
         }
-        #reset-button:active { transform: scale(0.94); background: rgba(0,0,0,0.7); }
+        #reset-button:active {
+            transform: scale(0.94);
+            background: rgba(0,0,0,0.7);
+        }
+        #reset-button:focus-visible {
+            outline: 2px solid #4c9aff;
+        }
 
-        /* Description panel (glassmorphism) */
+        /* Прогресс-бар (вертикальный? лучше горизонтальный, но вверху справа) */
+        #progress-container {
+            width: 120px;
+            height: 3px;
+            background: rgba(255,255,255,0.2);
+            border-radius: 3px;
+            overflow: hidden;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+        #progress-bar {
+            height: 100%;
+            width: 0%;
+            background: #4c9aff;
+            border-radius: 3px;
+            transition: width 0.1s linear;
+        }
+        .progress-visible {
+            opacity: 1;
+        }
+
+        /* Панель описания (снизу) */
         #info-panel {
             position: fixed;
             bottom: 0;
@@ -108,16 +123,21 @@
             margin: 0 auto 16px auto;
             cursor: grab;
         }
-        .panel-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 12px;
-        }
+
+        /* Контейнер для кнопок управления (над плашкой) */
         .panel-controls {
+            position: absolute;
+            top: -52px;
+            right: 16px;
             display: flex;
-            gap: 16px;
-            align-items: center;
+            gap: 12px;
+            background: rgba(0,0,0,0.6);
+            backdrop-filter: blur(12px);
+            padding: 8px 12px;
+            border-radius: 40px;
+            border: 1px solid rgba(255,255,255,0.2);
+            pointer-events: auto;
+            z-index: 3;
         }
         .panel-controls button {
             background: rgba(255,255,255,0.15);
@@ -126,12 +146,25 @@
             width: 36px;
             height: 36px;
             border-radius: 50%;
-            font-size: 18px;
+            font-size: 20px;
             cursor: pointer;
             transition: 0.2s;
             backdrop-filter: blur(4px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            outline: none;
+            user-select: none;
         }
-        .panel-controls button:active { transform: scale(0.92); background: rgba(255,255,255,0.25); }
+        .panel-controls button:active {
+            transform: scale(0.92);
+            background: rgba(255,255,255,0.25);
+        }
+        .panel-controls button:focus-visible {
+            outline: 2px solid #4c9aff;
+        }
+
+        /* Текст описания */
         #description-text {
             font-size: 15px;
             line-height: 1.5;
@@ -139,6 +172,9 @@
             overflow-y: auto;
             transition: font-size 0.2s;
             padding-right: 8px;
+            font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+            font-weight: 400;
+            letter-spacing: -0.2px;
         }
         #info-panel:not(.expanded) #description-text {
             white-space: nowrap;
@@ -146,26 +182,38 @@
             text-overflow: ellipsis;
             max-height: none;
         }
-        .hidden { display: none; }
+        .hidden {
+            display: none;
+        }
         @media (max-width: 600px) {
             #info-panel { padding: 14px 20px; }
             .panel-handle { margin-bottom: 12px; }
+            .panel-controls { top: -48px; right: 12px; gap: 8px; padding: 6px 10px; }
+            .panel-controls button { width: 32px; height: 32px; font-size: 18px; }
+            #top-bar { top: 16px; right: 16px; gap: 8px; }
+            #reset-button { width: 44px; height: 44px; font-size: 22px; }
+            #progress-container { width: 100px; }
         }
     </style>
 </head>
 <body>
     <video id="video-background" autoplay playsinline muted></video>
     <div id="canvas-container"></div>
-    <div id="progress-container"><div id="progress-bar"></div></div>
-    <button id="reset-button">↻</button>
+    
+    <div id="top-bar">
+        <div id="progress-container">
+            <div id="progress-bar"></div>
+        </div>
+        <button id="reset-button">↻</button>
+    </div>
+
     <div id="info-panel" class="hidden">
         <div class="panel-handle"></div>
-        <div class="panel-header">
-            <div class="panel-controls">
-                <button id="audio-btn">🔊</button>
-                <button id="zoom-out">−</button>
-                <button id="zoom-in">+</button>
-            </div>
+        <!-- Кнопки вынесены над плашкой -->
+        <div class="panel-controls">
+            <button id="audio-btn">🔊</button>
+            <button id="zoom-out">−</button>
+            <button id="zoom-in">+</button>
         </div>
         <div id="description-text"></div>
     </div>
