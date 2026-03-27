@@ -34,94 +34,111 @@
             z-index: 1;
             pointer-events: auto;
         }
-        /* Минималистичная плашка описания */
-        #info-panel {
+        /* Прогресс‑бар */
+        #progress-container {
             position: fixed;
             bottom: 80px;
             left: 16px;
             right: 16px;
-            background: rgba(0, 0, 0, 0.65);
-            backdrop-filter: none;
+            height: 4px;
+            background: rgba(255,255,255,0.2);
+            border-radius: 4px;
+            z-index: 3;
+            opacity: 0;
+            transition: opacity 0.2s;
+            pointer-events: none;
+        }
+        #progress-bar {
+            height: 100%;
+            width: 0%;
+            background: #4c9aff;
+            border-radius: 4px;
+            transition: width 0.1s linear;
+        }
+        .progress-visible {
+            opacity: 1 !important;
+        }
+        /* Плашка описания с возможностью разворачивания */
+        #info-panel {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: rgba(0, 0, 0, 0.85);
             color: #fff;
-            padding: 14px 20px;
-            border-radius: 24px;
+            padding: 16px 20px;
+            border-radius: 24px 24px 0 0;
             z-index: 2;
             font-size: 15px;
-            pointer-events: none;
+            pointer-events: auto;
             text-align: left;
-            transition: opacity 0.25s ease;
-            border: 1px solid rgba(255,255,255,0.2);
-            font-weight: 400;
-            letter-spacing: -0.2px;
-            line-height: 1.4;
+            transition: transform 0.3s cubic-bezier(0.2, 0.9, 0.4, 1.1);
+            transform: translateY(calc(100% - 60px));
+            border-top: 1px solid rgba(255,255,255,0.2);
+            cursor: pointer;
+            backdrop-filter: blur(8px);
         }
-        #info-panel h3 {
-            font-size: 18px;
-            font-weight: 500;
-            margin: 0 0 4px 0;
-            letter-spacing: -0.3px;
+        #info-panel.expanded {
+            transform: translateY(0);
+        }
+        .panel-handle {
+            width: 40px;
+            height: 4px;
+            background: rgba(255,255,255,0.5);
+            border-radius: 2px;
+            margin: 0 auto 12px auto;
         }
         #info-panel p {
             margin: 0;
             font-size: 14px;
-            opacity: 0.85;
+            line-height: 1.4;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        /* В свёрнутом виде показываем только одну строку */
+        #info-panel:not(.expanded) p {
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
         .hidden {
             display: none;
         }
-        /* Стильный статус-бар внизу */
+        /* Статус‑бар */
         #status-bar {
             position: fixed;
-            bottom: 20px;
+            bottom: 16px;
             left: 16px;
             right: 16px;
-            background: rgba(0, 0, 0, 0.75);
-            backdrop-filter: none;
+            background: rgba(0,0,0,0.7);
             border-radius: 40px;
             padding: 10px 20px;
             color: #fff;
             font-size: 14px;
             font-weight: 500;
-            z-index: 2;
+            z-index: 3;
             text-align: center;
             pointer-events: none;
             border: 1px solid rgba(255,255,255,0.2);
-            transition: all 0.2s ease;
-            font-family: inherit;
-        }
-        #status-text {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-        }
-        .status-icon {
-            font-size: 18px;
+            backdrop-filter: blur(8px);
         }
         .error-status {
             background: rgba(220, 53, 69, 0.9);
-            border-color: rgba(255,255,255,0.3);
-        }
-        /* Анимация сканирования (опционально) */
-        @keyframes pulse {
-            0% { opacity: 0.6; transform: scale(1); }
-            100% { opacity: 1; transform: scale(1.02); }
-        }
-        .scanning-active {
-            animation: pulse 1.2s infinite;
         }
         @media (max-width: 600px) {
-            #info-panel { bottom: 80px; padding: 12px 16px; }
-            #info-panel h3 { font-size: 16px; }
-            #status-bar { bottom: 16px; padding: 8px 16px; font-size: 13px; }
+            #info-panel { padding: 12px 16px; }
+            .panel-handle { margin-bottom: 8px; }
         }
     </style>
 </head>
 <body>
     <video id="video-background" autoplay playsinline muted></video>
     <div id="canvas-container"></div>
+    <div id="progress-container">
+        <div id="progress-bar"></div>
+    </div>
     <div id="info-panel" class="hidden">
-        <h3 id="model-title">3D Модель</h3>
+        <div class="panel-handle"></div>
         <p id="model-description"></p>
     </div>
     <div id="status-bar">
