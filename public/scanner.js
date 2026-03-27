@@ -18,7 +18,7 @@ let scanning = true;
 let scanCanvas, scanContext;
 let lastQRResult = null;
 
-// Helper for status updates
+// Helper for status updates (только критические)
 function setStatus(message, isError = false) {
     statusMessageSpan.innerText = message;
     if (isError) {
@@ -28,12 +28,11 @@ function setStatus(message, isError = false) {
         statusBar.classList.remove('error-status');
         if (message.includes('готова')) statusIconSpan.innerText = '📷';
         else if (message.includes('QR')) statusIconSpan.innerText = '🔍';
-        else if (message.includes('Загрузка')) statusIconSpan.innerText = '📥';
         else statusIconSpan.innerText = '🔄';
     }
 }
 
-// Progress bar control
+// Progress bar control (без текста)
 function showProgress(percent) {
     if (!progressContainer.classList.contains('progress-visible')) {
         progressContainer.classList.add('progress-visible');
@@ -85,14 +84,13 @@ infoPanel.addEventListener('click', (e) => {
     }
 });
 
-// Load 3D model with progress (без текстовых сообщений о проценте)
+// Load 3D model with progress (без текстовых сообщений)
 async function loadModel(modelId) {
     if (!isThreeReady) return;
     if (currentModel) {
         scene.remove(currentModel);
         currentModel = null;
     }
-    // Показываем прогресс-бар, но не меняем статусную строку
     showProgress(0);
     try {
         const modelUrl = `/api/models/${modelId}/file`;
@@ -118,19 +116,12 @@ async function loadModel(modelId) {
                     togglePanel(false);
                 })
                 .catch(err => console.error('Metadata error:', err));
-            
-            // После загрузки скрываем прогресс-бар и не выводим текстовое сообщение
             hideProgress();
-            // Статусную строку можно оставить как "Камера готова..." (не меняем)
-            // Но если хотим показать, что модель загружена, можно просто ничего не писать.
-            // Оставляем без изменений.
         }, (xhr) => {
             if (xhr.lengthComputable) {
                 const percentComplete = (xhr.loaded / xhr.total) * 100;
                 showProgress(percentComplete);
-                // Убираем текстовое сообщение о проценте:
-                // setStatus(`Загрузка: ${Math.round(percentComplete)}%`); 
-                // больше не вызываем
+                // Текстовый прогресс не выводим
             }
         }, (error) => {
             console.error('Load error:', error);
@@ -174,7 +165,7 @@ async function setupQRScanner() {
             const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: 'dontInvert' });
             if (code && code.data !== lastQRResult) {
                 lastQRResult = code.data;
-                setStatus(`QR найден, загружаем...`);
+                // Только визуальная индикация, без текста "QR найден"
                 loadModel(code.data);
             }
             requestAnimationFrame(scanFrame);
