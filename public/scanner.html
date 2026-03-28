@@ -199,16 +199,14 @@
             right: 0;
             z-index: 3;
             pointer-events: auto;
-            /* The panel moves up/down; controls float above its top edge */
         }
 
-        /* Floating controls — positioned absolute relative to panel,
-           sitting ABOVE the panel's visible top. They move with it. */
+        /* Floating controls — visible ONLY when panel is fully expanded */
         .floating-controls {
             position: absolute;
-            bottom: calc(100% + 14px); /* 14px above panel top */
+            bottom: calc(100% + 14px);
             left: 50%;
-            transform: translateX(-50%);
+            transform: translateX(-50%) translateY(10px);
             display: flex;
             align-items: center;
             gap: 10px;
@@ -220,11 +218,12 @@
             padding: 8px 14px;
             box-shadow: 0 8px 32px rgba(0,0,0,0.45), 0 0 0 1px rgba(255,255,255,0.04);
             opacity: 0;
-            transform: translateX(-50%) translateY(10px);
             pointer-events: none;
             transition: opacity 0.35s, transform 0.35s;
         }
-        #info-panel.visible .floating-controls {
+
+        /* Controls appear ONLY when expanded (not just visible) */
+        #info-panel.visible.expanded .floating-controls {
             opacity: 1;
             transform: translateX(-50%) translateY(0);
             pointer-events: auto;
@@ -288,12 +287,15 @@
             transform: translateY(0);
         }
 
+        /* Handle area — this is the ONLY zone that triggers swipe collapse/expand */
         .panel-handle-area {
             padding: 14px 0 10px;
             cursor: grab;
             display: flex;
             align-items: center;
             justify-content: center;
+            /* extend touch target slightly */
+            touch-action: none;
         }
         .panel-handle {
             width: 40px;
@@ -308,13 +310,15 @@
         }
 
         .panel-peek {
-            /* Visible strip when collapsed — shows title only */
             display: flex;
             align-items: center;
             justify-content: space-between;
             height: 28px;
             margin-bottom: 0;
             overflow: hidden;
+            /* swipe on peek row also triggers expand/collapse */
+            touch-action: none;
+            cursor: pointer;
         }
         .panel-peek-label {
             font-family: 'Syne', sans-serif;
@@ -333,7 +337,7 @@
             transform: rotate(180deg);
         }
 
-        /* Full description */
+        /* Full description — normal scrolling, no touch interference */
         .panel-content {
             max-height: 0;
             overflow: hidden;
@@ -362,6 +366,9 @@
             overflow-y: auto;
             padding-right: 4px;
             user-select: text;
+            /* allow natural scroll inside description, no swipe capture */
+            touch-action: pan-y;
+            overscroll-behavior: contain;
         }
         #description-text::-webkit-scrollbar {
             width: 3px;
@@ -434,7 +441,7 @@
     <!-- Info panel -->
     <div id="info-panel" class="hidden">
 
-        <!-- Floating controls — ABOVE the panel, move with it -->
+        <!-- Floating controls — visible only when expanded -->
         <div class="floating-controls">
             <button class="ctrl-btn" id="audio-btn" title="Озвучить">🔊</button>
             <div class="ctrl-divider"></div>
@@ -446,11 +453,13 @@
         <div class="panel-body">
             <div class="panel-glow-line"></div>
 
+            <!-- Swipe zone: only this area triggers expand/collapse -->
             <div class="panel-handle-area" id="panel-handle">
                 <div class="panel-handle"></div>
             </div>
 
-            <div class="panel-peek">
+            <!-- Swipe zone: peek row also triggers expand/collapse -->
+            <div class="panel-peek" id="panel-peek">
                 <span class="panel-peek-label">Описание</span>
                 <span class="panel-peek-arrow">▲</span>
             </div>
