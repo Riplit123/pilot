@@ -11,6 +11,7 @@ const spinnerOverlay = document.getElementById('spinner-overlay');
 const loadingPercent = document.getElementById('loading-percent');
 const scanHint       = document.getElementById('scan-hint');
 const panelHandle    = document.getElementById('panel-handle');
+const panelPeek      = document.getElementById('panel-peek');
 
 // ─── State ─────────────────────────────────────────────
 let scene, camera, renderer, controls, currentModel;
@@ -42,7 +43,6 @@ function hideSpinner() {
 // ─── Panel helpers ─────────────────────────────────────
 function showPanel() {
     infoPanel.classList.remove('hidden');
-    // Trigger animation on next frame so CSS transition fires
     requestAnimationFrame(() => infoPanel.classList.add('visible'));
     scanHint.classList.add('hidden');
 }
@@ -61,28 +61,49 @@ function isPanelExpanded() {
     return infoPanel.classList.contains('expanded');
 }
 
-// Toggle on handle / peek area click
+// ─── Toggle on handle click ────────────────────────────
 panelHandle.addEventListener('click', () => {
     isPanelExpanded() ? collapsePanel() : expandPanel();
 });
-// Also allow tapping the peek row
-document.querySelector('.panel-peek').addEventListener('click', () => {
+panelPeek.addEventListener('click', () => {
     isPanelExpanded() ? collapsePanel() : expandPanel();
 });
 
-// Swipe gesture on the panel
-let touchStartY = 0;
-infoPanel.addEventListener('touchstart', (e) => {
-    touchStartY = e.touches[0].clientY;
-}, { passive: true });
-infoPanel.addEventListener('touchmove', (e) => {
-    const delta = e.touches[0].clientY - touchStartY;
+// ─── Swipe gesture ONLY on handle area and peek row ────
+// The description text area has its own natural scroll and
+// does NOT trigger collapse/expand, so users can read freely.
+
+let swipeTouchStartY = 0;
+let swipeTouchActive = false;
+
+function onSwipeZoneTouchStart(e) {
+    swipeTouchStartY = e.touches[0].clientY;
+    swipeTouchActive = true;
+}
+
+function onSwipeZoneTouchMove(e) {
+    if (!swipeTouchActive) return;
+    const delta = e.touches[0].clientY - swipeTouchStartY;
     if (delta < -40 && !isPanelExpanded()) {
         expandPanel();
+        swipeTouchActive = false;
     } else if (delta > 40 && isPanelExpanded()) {
         collapsePanel();
+        swipeTouchActive = false;
     }
-}, { passive: true });
+}
+
+function onSwipeZoneTouchEnd() {
+    swipeTouchActive = false;
+}
+
+// Attach swipe listeners only to handle area and peek row
+[panelHandle, panelPeek].forEach(el => {
+    el.addEventListener('touchstart',  onSwipeZoneTouchStart, { passive: true });
+    el.addEventListener('touchmove',   onSwipeZoneTouchMove,  { passive: true });
+    el.addEventListener('touchend',    onSwipeZoneTouchEnd,   { passive: true });
+    el.addEventListener('touchcancel', onSwipeZoneTouchEnd,   { passive: true });
+});
 
 // ─── Reset ─────────────────────────────────────────────
 function resetModel() {
